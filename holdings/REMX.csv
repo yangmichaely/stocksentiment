@@ -1,0 +1,26 @@
+Number,Ticker,Holding Name,Identifier (FIGI),Shares,Asset Class,Market Value (US$),Notional Value,% of Net Assets
+1,ALB US,Albemarle Corp,BBG000BJ26K7,"1,256,755",Stock,"$227,095,628.50", -- ,8.30%
+2,600111 C1,China Northern Rare Earth Group High-Te,BBG00709HF84,"25,508,816",Stock,"$204,747,246.90", -- ,7.48%
+3,600549 C1,Xiamen Tungsten Co Ltd,BBG00709HVP0,"20,041,634",Stock,"$171,515,654.59", -- ,6.27%
+4,LYC AU,Lynas Rare Earths Ltd,BBG000BSCDH5,"16,050,274",Stock,"$168,352,342.69", -- ,6.15%
+5,MP US,Mp Materials Corp,BBG00TJGL0F0,"2,524,318",Stock,"$156,911,606.88", -- ,5.73%
+6,601958 C1,Jinduicheng Molybdenum Co Ltd,BBG00709JG26,"46,912,015",Stock,"$153,020,671.78", -- ,5.59%
+7,SQM US,Sociedad Quimica Y Minera De Chile Sa,BBG000BKK4S1,"1,799,491",Stock,"$146,910,445.24", -- ,5.37%
+8,PLS AU,Pilbara Minerals Ltd,BBG000RLN524,"45,046,609",Stock,"$143,523,254.38", -- ,5.24%
+9,600392 C1,Shenghe Resources Holding Co Ltd,BBG00L1KMZR6,"30,920,381",Stock,"$132,316,811.14", -- ,4.83%
+10,LTR AU,Liontown Resources Ltd,BBG000F21113,"91,842,603",Stock,"$131,451,022.40", -- ,4.80%
+11,1772 HK,Ganfeng Lithium Group Co Ltd,BBG00L9ZZS33,"14,340,440",Stock,"$122,837,195.90", -- ,4.49%
+12,AII CN,Almonty Industries Inc,BBG000QJ6LQ8,"10,719,024",Stock,"$122,171,016.05", -- ,4.46%
+13,AMG NA,Amg Critical Materials Nv,BBG000RLBF52,"2,170,176",Stock,"$95,384,544.79", -- ,3.49%
+14,IPX US,Iperionx Ltd,BBG0188WZ502,"1,747,969",Stock,"$92,310,242.89", -- ,3.37%
+15,LAC US,Lithium Americas Corp,BBG01JLDH7S1,"16,818,229",Stock,"$91,322,983.47", -- ,3.34%
+16,ILU AU,Iluka Resources Ltd,BBG000C13PJ4,"19,222,287",Stock,"$74,235,772.68", -- ,2.71%
+17,LAR US,Lithium Americas Argentina Corp,BBG01JLDJ6X5,"9,865,365",Stock,"$73,102,354.65", -- ,2.67%
+18,603067 C1,Hubei Zhenhua Chemical Co Ltd,BBG01FRB9MP6,"14,235,604",Stock,"$72,837,357.34", -- ,2.66%
+19,SLI US,Standard Lithium Ltd,BBG00GNRHX08,"14,954,428",Stock,"$72,229,887.24", -- ,2.64%
+20,ERA FP,Eramet Sa,BBG000CBQ8H7,"691,152",Stock,"$63,650,317.21", -- ,2.33%
+21,600456 C1,Baoji Titanium Industry Co Ltd,BBG01FRB1Y50,"9,567,373",Stock,"$54,797,020.14", -- ,2.00%
+22,SGML US,Sigma Lithium Corp,BBG00L95H2Y2,"4,238,952",Stock,"$53,877,079.92", -- ,1.97%
+23,VUL AU,Vulcan Energy Resources Ltd,BBG00KXSP9N5,"18,012,089",Stock,"$52,194,121.39", -- ,1.91%
+24,TROX US,Tronox Holdings Plc,BBG00MRH2W10,"6,034,025",Stock,"$40,126,266.25", -- ,1.47%
+25,AVZ AU,Avz Minerals Ltd,BBG000GDY0D1,"52,906,510",Stock,"$17,539,901.64", -- ,0.64%

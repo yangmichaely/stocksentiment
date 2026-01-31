@@ -1,0 +1,39 @@
+Number,Ticker,Holding Name,Identifier (FIGI),Shares,Asset Class,Market Value (US$),Notional Value,% of Net Assets
+1,RIO US,Rio Tinto Plc,BBG000FD28T3,"174,616",Stock,"$16,611,220.08", -- ,8.61%
+2,BHP US,Bhp Group Ltd,BBG000BD5NZ4,"219,936",Stock,"$15,872,781.12", -- ,8.23%
+3,VALE US,Vale Sa,BBG000BN5LG7,"896,738",Stock,"$15,190,741.72", -- ,7.88%
+4,RIO AU,Rio Tinto Ltd,BBG000BYLWT7,"100,300",Stock,"$10,978,243.61", -- ,5.69%
+5,NUE US,Nucor Corp,BBG000BQ8KV2,"60,759",Stock,"$10,931,151.69", -- ,5.67%
+6,FMG AU,Fortescue Metals Group Ltd,BBG000J47TP2,"719,269",Stock,"$10,807,992.05", -- ,5.60%
+7,MT US,Arcelormittal Sa,BBG000BJH5W0,"184,899",Stock,"$10,315,515.21", -- ,5.35%
+8,RS US,Reliance Steel & Aluminum Co,BBG000CJ2181,"25,920",Stock,"$8,612,956.80", -- ,4.47%
+9,PKX US,Posco Holdings Inc,BBG000BCBSD2,"137,528",Stock,"$8,489,603.44", -- ,4.40%
+10,5401 JP,Nippon Steel Corp,BBG000BG9X54,"1,890,200",Stock,"$7,989,557.70", -- ,4.14%
+11,STLD US,Steel Dynamics Inc,BBG000HGYNZ9,"43,733",Stock,"$7,958,094.01", -- ,4.13%
+12,2002 TT,China Steel Corp,BBG000BDBXZ5,"9,518,000",Stock,"$6,283,913.41", -- ,3.26%
+13,5411 JP,Jfe Holdings Inc,BBG000BQWB27,"449,900",Stock,"$6,139,526.91", -- ,3.18%
+14,TS US,Tenaris Sa,BBG000PLD4R3,"129,762",Stock,"$5,847,075.72", -- ,3.03%
+15,CLF US,Cleveland-Cliffs Inc,BBG000BFRF55,"323,258",Stock,"$4,593,496.18", -- ,2.38%
+16,BSL AU,Bluescope Steel Ltd,BBG000KPMQF3,"212,219",Stock,"$4,523,518.55", -- ,2.35%
+17,CMC US,Commercial Metals Co,BBG000BFSND8,"56,289",Stock,"$4,388,290.44", -- ,2.28%
+18,MIN AU,Mineral Resources Ltd,BBG000M2YPN2,"101,672",Stock,"$4,341,627.45", -- ,2.25%
+19,GGB US,Gerdau Sa,BBG000K91FQ4,"873,653",Stock,"$3,844,073.20", -- ,1.99%
+20,SSABB SS,Ssab Ab,BBG000BGD8Q1,"461,167",Stock,"$3,789,991.84", -- ,1.97%
+21,2027 TT,Ta Chen Stainless Pipe,BBG000HK7WR9,"1,837,000",Stock,"$2,353,305.11", -- ,1.22%
+22,ACX SM,Acerinox Sa,BBG000BB7ZC4,"141,475",Stock,"$2,106,894.95", -- ,1.09%
+23,EREGL TI,Eregli Demir Ve Celik Fabrikalari Tas,BBG000BVCBJ0,"2,647,922",Stock,"$1,739,648.67", -- ,0.90%
+24,5444 JP,Yamato Kogyo Co Ltd,BBG000BD7BW1,"22,500",Stock,"$1,652,566.07", -- ,0.86%
+25,OUT1V FH,Outokumpu Oyj,BBG000BQ5Z60,"286,288",Stock,"$1,640,401.09", -- ,0.85%
+26,TX US,Ternium Sa,BBG000LTPD97,"36,400",Stock,"$1,585,584.00", -- ,0.82%
+27,5463 JP,Maruichi Steel Tube Ltd,BBG000BL7191,"148,700",Stock,"$1,492,069.70", -- ,0.77%
+28,APAM NA,Aperam Sa,BBG001D93XQ9,"33,220",Stock,"$1,452,343.46", -- ,0.75%
+29,SGM AU,Sims Ltd,BBG000BSRGJ0,"100,870",Stock,"$1,446,439.49", -- ,0.75%
+30,8078 JP,Hanwa Co Ltd,BBG000BBLFX9,"28,200",Stock,"$1,443,307.48", -- ,0.75%
+31,RUS CN,Russel Metals Inc,BBG000DPZC04,"40,003",Stock,"$1,433,031.37", -- ,0.74%
+32,004020 KS,Hyundai Steel Co,BBG000BCVFZ4,"54,487",Stock,"$1,201,234.69", -- ,0.62%
+33,LIF CN,Labrador Iron Ore Royalty Corp,BBG000HRCTX8,"45,514",Stock,"$1,016,010.95", -- ,0.53%
+34,SID US,Cia Siderurgica Nacional Sa,BBG000JM98S3,"481,562",Stock,"$992,017.72", -- ,0.51%
+35,KIO SJ,Kumba Iron Ore Ltd,BBG000PPVK43,"41,424",Stock,"$971,045.91", -- ,0.50%
+36,2015 TT,Feng Hsin Steel Co Ltd,BBG000BJR8N3,"417,000",Stock,"$873,403.15", -- ,0.45%
+37,WS US,Worthington Steel Inc,BBG01JPM5032,"17,691",Stock,"$710,293.65", -- ,0.37%
+38,VSVS LN,Vesuvius Plc,BBG000BDBMW2,"101,387",Stock,"$647,530.83", -- ,0.34%

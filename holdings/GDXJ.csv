@@ -1,0 +1,92 @@
+Number,Ticker,Holding Name,Identifier (FIGI),Shares,Asset Class,Market Value (US$),Notional Value,% of Net Assets
+1,PAAS US,Pan American Silver Corp,BBG000C0RGY3,"12,796,326",Stock,"$809,879,472.54", -- ,6.83%
+2,CDE US,Coeur Mining Inc,BBG000BF8TF5,"30,634,969",Stock,"$752,701,188.33", -- ,6.35%
+3,AGI US,Alamos Gold Inc,BBG009HT6BL4,"15,547,004",Stock,"$654,839,808.48", -- ,5.52%
+4,RGLD US,Royal Gold Inc,BBG000BS5170,"2,123,787",Stock,"$620,103,328.26", -- ,5.23%
+5,EQX US,Equinox Gold Corp,BBG004XB7MN9,"37,115,201",Stock,"$594,214,368.01", -- ,5.01%
+6,PE&OLES* MF,Industrias Penoles Sab De Cv,BBG000LXSKQ0,"5,515,163",Stock,"$372,266,739.63", -- ,3.14%
+7,HL US,Hecla Mining Co,BBG000BL5W86,"12,463,495",Stock,"$328,039,188.40", -- ,2.77%
+8,EVN AU,Evolution Mining Ltd,BBG000NF2249,"30,574,534",Stock,"$322,396,617.29", -- ,2.72%
+9,AG US,First Majestic Silver Corp,BBG000CH7WB8,"12,760,784",Stock,"$321,188,933.28", -- ,2.71%
+10,EDV LN,Endeavour Mining Plc,BBG011DVVYT3,"4,774,481",Stock,"$303,983,077.95", -- ,2.56%
+11,IAG US,Iamgold Corp,BBG000LL9LQ5,"14,268,228",Stock,"$297,920,600.64", -- ,2.51%
+12,HMY US,Harmony Gold Mining Co Ltd,BBG000BX93G1,"11,468,131",Stock,"$280,969,209.50", -- ,2.37%
+13,NGD US,New Gold Inc,BBG000KD2ZL5,"21,737,638",Stock,"$263,025,419.80", -- ,2.22%
+14,EGO US,Eldorado Gold Corp,BBG000BN7277,"4,567,642",Stock,"$219,977,638.72", -- ,1.85%
+15,OGC CN,Oceanagold Corp,BBG000RG1PM3,"5,890,430",Stock,"$215,663,045.18", -- ,1.82%
+16,1818 HK,Zhaojin Mining Industry Co Ltd,BBG000DQ77W9,"43,384,200",Stock,"$215,607,188.58", -- ,1.82%
+17,DPM CN,Dundee Precious Metals Inc,BBG000G9HTM6,"5,306,175",Stock,"$212,043,450.81", -- ,1.79%
+18,LUG CN,Lundin Gold Inc,BBG000BZYV49,"2,351,931",Stock,"$205,671,425.43", -- ,1.73%
+19,BVN US,Cia De Minas Buenaventura Saa,BBG000GPXR82,"5,112,808",Stock,"$196,996,492.24", -- ,1.66%
+20,BTG US,B2gold Corp,BBG000V9KFD5,"33,135,328",Stock,"$183,901,070.40", -- ,1.55%
+21,OR US,Or Royalties Inc,BBG006NTSJ78,"3,722,544",Stock,"$170,157,486.24", -- ,1.43%
+22,RMS AU,Ramelius Resources Ltd,BBG000PMB297,"47,167,077",Stock,"$159,498,940.32", -- ,1.34%
+23,GMIN CN,G Mining Ventures Corp,BBG01NT389N7,"4,633,190",Stock,"$156,951,853.34", -- ,1.32%
+24,DSV CN,Discovery Silver Corp,BBG000BS3HY7,"18,538,608",Stock,"$153,308,838.24", -- ,1.29%
+25,BRMS IJ,Bumi Resources Minerals Tbk Pt,BBG0018R2541,"2,259,774,600",Stock,"$142,579,946.42", -- ,1.20%
+26,GGP AU,Greatland Resources Ltd,BBG01V7BTM08,"15,098,331",Stock,"$138,550,041.22", -- ,1.17%
+27,ARTG CN,Artemis Gold Inc,BBG00PSSBKG8,"4,296,271",Stock,"$134,097,027.78", -- ,1.13%
+28,SSRM US,Ssr Mining Inc,BBG000C0RWX9,"4,914,429",Stock,"$131,804,985.78", -- ,1.11%
+29,PRU AU,Perseus Mining Ltd,BBG000Q68231,"29,520,372",Stock,"$126,377,793.67", -- ,1.07%
+30,TXG CN,Torex Gold Resources Inc,BBG000BSWRQ2,"2,214,747",Stock,"$124,138,893.48", -- ,1.05%
+31,GMD AU,Genesis Minerals Ltd,BBG000J9HXY1,"21,583,980",Stock,"$121,324,104.34", -- ,1.02%
+32,KNT CN,K92 Mining Inc,BBG0018BVXB5,"5,388,834",Stock,"$110,754,243.84", -- ,0.93%
+33,VAU AU,Vault Minerals Ltd,BBG000H39TV7,"25,898,845",Stock,"$108,819,608.99", -- ,0.92%
+34,CMM AU,Capricorn Metals Ltd,BBG000C0X7Y6,"10,097,489",Stock,"$108,778,706.36", -- ,0.92%
+35,EXK US,Endeavour Silver Corp,BBG000K2HB18,"8,163,911",Stock,"$107,437,068.76", -- ,0.91%
+36,ORLA US,Orla Mining Ltd,BBG00FZBZ5G6,"6,121,205",Stock,"$104,427,757.30", -- ,0.88%
+37,WGX AU,Westgold Resources Ltd,BBG000BG27F7,"19,804,941",Stock,"$102,346,642.92", -- ,0.86%
+38,ARMN US,Aris Mining Corp,BBG000K0VQL1,"4,726,935",Stock,"$96,760,359.45", -- ,0.82%
+39,RRL AU,Regis Resources Ltd,BBG000BLX2J9,"16,767,278",Stock,"$95,333,357.56", -- ,0.80%
+40,SKE US,Skeena Resources Ltd,BBG000FCR8D5,"2,752,666",Stock,"$90,535,184.74", -- ,0.76%
+41,FSM US,Fortuna Silver Mines Inc,BBG000LDZ482,"7,612,396",Stock,"$87,466,430.04", -- ,0.74%
+42,CGAU US,Centerra Gold Inc,BBG000QWM2M7,"4,348,472",Stock,"$84,882,173.44", -- ,0.72%
+43,HOC LN,Hochschild Mining Plc,BBG000Q49X82,"8,505,489",Stock,"$83,959,255.42", -- ,0.71%
+44,AURA33 BZ,Aura Minerals Inc,BBG00VPLQKP7,"3,403,079",Stock,"$83,866,270.77", -- ,0.71%
+45,TFPM US,Triple Flag Precious Metals Corp,BBG012PP0X53,"2,134,410",Stock,"$79,826,934.00", -- ,0.67%
+46,PPTA US,Perpetua Resources Corp,BBG0024TXN82,"2,430,477",Stock,"$77,921,092.62", -- ,0.66%
+47,SA US,Seabridge Gold Inc,BBG000JYQX30,"2,310,389",Stock,"$77,490,447.06", -- ,0.65%
+48,AAUC CN,Allied Gold Corp,BBG01J3PPY06,"2,380,429",Stock,"$75,861,851.50", -- ,0.64%
+49,WDO CN,Wesdome Gold Mines Ltd/Canada,BBG000DKQDS3,"4,145,073",Stock,"$74,581,041.25", -- ,0.63%
+50,3939 HK,Wanguo Gold Group Ltd,BBG0035C8R30,"43,097,000",Stock,"$73,066,647.06", -- ,0.62%
+51,EMR AU,Emerald Resources Nl,BBG000BRL4C2,"13,259,518",Stock,"$71,272,254.11", -- ,0.60%
+52,NG US,Novagold Resources Inc,BBG000D25424,"6,367,315",Stock,"$69,913,118.70", -- ,0.59%
+53,SVM US,Silvercorp Metals Inc,BBG000CY5S22,"5,723,747",Stock,"$69,257,338.70", -- ,0.58%
+54,AYA CN,Aya Gold & Silver Inc,BBG000FTVZM3,"3,436,203",Stock,"$64,691,011.44", -- ,0.55%
+55,WAF AU,West African Resources Ltd,BBG000R17C94,"24,612,346",Stock,"$64,616,798.28", -- ,0.54%
+56,PAF LN,Pan African Resources Plc,BBG000DK30N1,"31,721,770",Stock,"$63,292,333.63", -- ,0.53%
+57,VZLA US,Vizsla Silver Corp,BBG00QQ0VMJ0,"9,495,693",Stock,"$55,454,847.12", -- ,0.47%
+58,ASM US,Avino Silver & Gold Mines Ltd,BBG000BMTLV6,"4,538,502",Stock,"$50,014,292.04", -- ,0.42%
+59,RSG AU,Resolute Mining Ltd,BBG000BT9RX8,"48,413,786",Stock,"$47,001,313.03", -- ,0.40%
+60,CYL AU,Catalyst Metals Ltd,BBG000PP0V25,"6,924,578",Stock,"$43,700,907.67", -- ,0.37%
+61,KOZAL TI,Koza Altin Isletmeleri As,BBG000V2H0F5,"28,363,180",Stock,"$38,577,649.10", -- ,0.33%
+62,MUX US,Mcewen Mining Inc,BBG000BW6CN8,"1,367,168",Stock,"$37,802,195.20", -- ,0.32%
+63,IAUX US,I-80 Gold Corp,BBG0108B6SW2,"20,089,943",Stock,"$36,161,897.40", -- ,0.30%
+64,OBM AU,Ora Banda Mining Ltd,BBG000N3DGM3,"36,779,743",Stock,"$35,357,755.28", -- ,0.30%
+65,GGD CN,Gogold Resources Inc,BBG000PYQ5N2,"12,774,883",Stock,"$34,963,532.09", -- ,0.29%
+66,BGL AU,Bellevue Gold Ltd,BBG000K5PKD9,"26,229,710",Stock,"$34,800,622.59", -- ,0.29%
+67,KCN AU,Kingsgate Consolidated Ltd,BBG000BHSQT0,"7,609,611",Stock,"$34,745,196.38", -- ,0.29%
+68,DRD US,Drdgold Ltd,BBG000BX8QF2,"947,506",Stock,"$33,626,987.94", -- ,0.28%
+69,6693 HK,Chifeng Jilong Gold Mining Co Ltd,BBG01SCB35R5,"5,370,400",Stock,"$30,933,995.33", -- ,0.26%
+70,PNR AU,Pantoro Gold Ltd,BBG000BWC1X4,"7,447,936",Stock,"$27,070,492.03", -- ,0.23%
+71,ALK AU,Alkane Resources Ltd,BBG000BRN1P2,"23,386,992",Stock,"$26,299,137.85", -- ,0.22%
+72,GROY US,Gold Royalty Corp,BBG00ZGH4798,"4,781,021",Stock,"$22,231,747.65", -- ,0.19%
+73,BC8 AU,Black Cat Syndicate Ltd,BBG00JCLXFT7,"18,640,233",Stock,"$19,778,369.81", -- ,0.17%
+74,KOZAA TI,Koza Anadolu Metal Madencilik Isletmele,BBG000PJ0TX0,"5,499,290",Stock,"$19,229,185.32", -- ,0.16%
+75,DC US,Dakota Gold Corp,BBG0120W17D2,"2,808,820",Stock,"$18,706,741.20", -- ,0.16%
+76,IDR US,Idaho Strategic Resources Inc,BBG000JLVQT9,"437,316",Stock,"$18,052,404.48", -- ,0.15%
+77,MTA US,Metalla Royalty & Streaming Ltd,BBG000HM5YW7,"2,131,499",Stock,"$17,393,031.84", -- ,0.15%
+78,NFG CN,New Found Gold Corp,BBG00JFFSNM3,"5,021,903",Stock,"$15,633,824.40", -- ,0.13%
+79,SBM AU,St Barbara Ltd,BBG000BS4GC2,"28,216,292",Stock,"$14,808,203.05", -- ,0.12%
+80,MEK AU,Meeka Metals Ltd,BBG000D2X3G0,"82,188,317",Stock,"$14,004,172.36", -- ,0.12%
+81,CMCL US,Caledonia Mining Corp Plc,BBG000CQHQS2,"438,621",Stock,"$13,487,595.75", -- ,0.11%
+82,GLDG US,Goldmining Inc,BBG001V9NSN1,"6,150,312",Stock,"$11,624,089.68", -- ,0.10%
+83,CTGO US,Contango Ore Inc,BBG0016YSLB7,"357,848",Stock,"$11,440,400.56", -- ,0.10%
+84,LUCA CN,Luca Mining Corp,BBG000CXXF85,"6,926,410",Stock,"$9,810,561.91", -- ,0.08%
+85,AMI AU,Aurelia Metals Ltd,BBG000R5D3F1,"37,477,384",Stock,"$8,886,880.27", -- ,0.07%
+86,FFX AU,Firefinch Ltd,BBG000Q3DTC3,"54,133,739",Stock,"$2,229,176.55", -- ,0.02%
+87,BGL US,Blue Gold Ltd,BBG01VS5PZS3,"367,548",Stock,"$1,124,696.88", -- ,0.01%
+88,FMR CN,Future Mineral Resources Inc,BBG006YGFKF6,"168,999",Stock,"$39,895.01", -- ,0.00%
+89,NIX CN,Archer Exploration Corp,BBG00Z72DBM7,"179,304",Stock,"$31,084.39", -- ,0.00%
+90,ASM AU,Australian Strategic Materials Ltd,BBG00BN4ZM13,1,Stock,$1.29, -- ,0.00%
+91,VGCX CN,Victoria Gold Corp/Vancouver,BBG000BD0132,"1,722,275",Stock,$1.27, -- ,0.00%

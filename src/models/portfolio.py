@@ -9,18 +9,25 @@ from ..utils.config import config
 
 
 class Portfolio:
-    """Long-short portfolio based on sentiment rankings"""
+    """Long-only portfolio based on sentiment rankings with absolute thresholds"""
     
-    def __init__(self, long_percentile=80, short_percentile=20):
+    def __init__(self, sentiment_threshold=0.25, max_positions=15, long_only=True):
         """
         Initialize portfolio
         
         Args:
-            long_percentile: Top percentile for long positions
-            short_percentile: Bottom percentile for short positions
+            sentiment_threshold: Minimum absolute sentiment score to consider (default 0.25)
+            max_positions: Maximum number of positions to hold (default 15)
+            long_only: If True, only long positions; if False, market-neutral long-short (default True)
         """
-        self.long_percentile = long_percentile
-        self.short_percentile = short_percentile
+        self.sentiment_threshold = sentiment_threshold
+        self.max_positions = max_positions
+        self.long_only = long_only
+        
+        # Legacy parameters for backwards compatibility
+        self.long_percentile = 80
+        self.short_percentile = 20
+        
         self.positions = []
         self.current_holdings = {'long': [], 'short': []}  # Track current positions
         self.state_file = config.results_dir / 'portfolio_state.json'
@@ -34,8 +41,9 @@ class Portfolio:
             'date': str(self.positions[-1].get('date', datetime.now().date())),
             'current_holdings': self.current_holdings,
             'last_portfolio': self.positions[-1],
-            'long_percentile': self.long_percentile,
-            'short_percentile': self.short_percentile
+            'sentiment_threshold': self.sentiment_threshold,
+            'max_positions': self.max_positions,
+            'long_only': self.long_only
         }
         
         import json
@@ -129,56 +137,119 @@ class Portfolio:
     def construct_portfolio(self, ranked_df: pd.DataFrame, date=None, incremental=True, 
                            portfolio_value=10_000_000) -> dict:
         """
-        Construct long-short portfolio with incremental rebalancing and position sizing
+        Construct long-only portfolio with absolute sentiment threshold and top-K selection
+        
+        Strategy:
+        1. Filter for stocks with sentiment_score > threshold (high conviction only)
+        2. Rank by predicted return and take top K positions
+        3. Weight by signal strength with exponential decay
+        4. Remaining capital held as cash (earning risk-free rate)
         
         Args:
-            ranked_df: DataFrame with predictions and ranks
+            ranked_df: DataFrame with predictions, sentiment_score, and ranks
             date: Optional date for this portfolio snapshot
-            incremental: If True, only adjust positions that change percentiles
+            incremental: If True, only adjust positions that change significantly
             portfolio_value: Total portfolio value in dollars (default $10M)
         
         Returns:
-            Dict with long and short positions, weights, and dollar amounts
+            Dict with long positions, weights, dollar amounts, and cash position
         """
-        if 'percentile' not in ranked_df.columns:
-            print("Warning: percentile column not found, using top/bottom 20%")
-            ranked_df = ranked_df.sort_values('predicted_return', ascending=False)
-            n = len(ranked_df)
-            top_n = max(1, int(n * 0.2))
+        # Use predicted_return as the signal (XGBoost model output)
+        # Convert threshold from sentiment scale to predicted_return scale
+        # Since predicted_return is typically in range -0.1 to 0.1, use a lower threshold
+        signal_col = 'predicted_return'
+        
+        # Auto-detect appropriate threshold based on data distribution
+        if signal_col in ranked_df.columns:
+            # Use top 30% as candidates (more relaxed than fixed 0.25 sentiment threshold)
+            threshold_percentile = 70  # Top 30%
+            threshold = ranked_df[signal_col].quantile(threshold_percentile / 100)
             
-            long_stocks = ranked_df.head(top_n)
-            short_stocks = ranked_df.tail(top_n)
+            print(f"\nUsing {signal_col} as signal (threshold: {threshold:.4f} = top {100-threshold_percentile}%)")
         else:
-            # Long top percentile
-            long_stocks = ranked_df[
-                ranked_df['percentile'] >= self.long_percentile / 100
-            ]
+            threshold = 0
+            print(f"\nWarning: {signal_col} not found")
+        
+        # Step 1: Filter for high-conviction signals (above threshold)
+        if self.long_only:
+            # Long-only: only positive signals above threshold
+            candidates = ranked_df[
+                ranked_df[signal_col] > threshold
+            ].copy()
             
-            # Short bottom percentile
-            short_stocks = ranked_df[
-                ranked_df['percentile'] <= self.short_percentile / 100
-            ]
+            print(f"Filtering: {len(candidates)} stocks with {signal_col} > {threshold:.4f}")
+        else:
+            # Market-neutral: both long and short
+            long_candidates = ranked_df[
+                ranked_df[signal_col] > threshold
+            ].copy()
+            short_candidates = ranked_df[
+                ranked_df[signal_col] < -threshold
+            ].copy()
+            
+            print(f"Filtering: {len(long_candidates)} long candidates, {len(short_candidates)} short candidates")
+        
+        # Step 2: Rank by signal strength and take top K
+        if self.long_only:
+            # Sort by predicted return (descending) and take top K
+            candidates = candidates.sort_values('predicted_return', ascending=False)
+            long_stocks = candidates.head(self.max_positions)
+            short_stocks = pd.DataFrame()  # Empty for long-only
+            
+            print(f"Selected top {len(long_stocks)} positions (max: {self.max_positions})")
+        else:
+            # Market-neutral: take top K longs and top K shorts
+            long_candidates = long_candidates.sort_values('predicted_return', ascending=False)
+            short_candidates = short_candidates.sort_values('predicted_return', ascending=True)
+            
+            long_stocks = long_candidates.head(self.max_positions)
+            short_stocks = short_candidates.head(self.max_positions)
+            
+            print(f"Selected {len(long_stocks)} long, {len(short_stocks)} short (max each: {self.max_positions})")
         
         new_long = long_stocks['ticker'].tolist()
-        new_short = short_stocks['ticker'].tolist()
+        new_short = short_stocks['ticker'].tolist() if not self.long_only else []
         
-        # Calculate position weights
+        # Step 3: Calculate position weights with exponential decay
         long_weights = self.calculate_position_weights(ranked_df, new_long, 'long')
-        short_weights = self.calculate_position_weights(ranked_df, new_short, 'short')
+        short_weights = self.calculate_position_weights(ranked_df, new_short, 'short') if not self.long_only else {}
         
-        # Calculate dollar amounts (50% long, 50% short for market-neutral)
-        long_capital = portfolio_value * 0.5
-        short_capital = portfolio_value * 0.5
-        
-        long_positions = {ticker: {'weight': weight, 
-                                   'dollars': weight * long_capital,
-                                   'percent': weight * 100}
-                         for ticker, weight in long_weights.items()}
-        
-        short_positions = {ticker: {'weight': weight,
-                                    'dollars': weight * short_capital,
-                                    'percent': weight * 100}
-                          for ticker, weight in short_weights.items()}
+        # Step 4: Calculate dollar amounts
+        if self.long_only:
+            # Long-only: allocate up to 100% to long positions, rest is cash
+            # If we have fewer positions than max, we'll hold more cash
+            long_capital = portfolio_value  # Full portfolio for long positions
+            short_capital = 0
+            
+            long_positions = {ticker: {'weight': weight, 
+                                       'dollars': weight * long_capital,
+                                       'percent': weight * 100}
+                             for ticker, weight in long_weights.items()}
+            short_positions = {}
+            
+            # Calculate cash position
+            invested_capital = sum(pos['dollars'] for pos in long_positions.values())
+            cash_position = portfolio_value - invested_capital
+            cash_percent = (cash_position / portfolio_value) * 100
+            
+            print(f"Capital allocation: {cash_percent:.1f}% cash, {100-cash_percent:.1f}% invested")
+        else:
+            # Market-neutral: 50% long, 50% short
+            long_capital = portfolio_value * 0.5
+            short_capital = portfolio_value * 0.5
+            
+            long_positions = {ticker: {'weight': weight, 
+                                       'dollars': weight * long_capital,
+                                       'percent': weight * 100}
+                             for ticker, weight in long_weights.items()}
+            
+            short_positions = {ticker: {'weight': weight,
+                                        'dollars': weight * short_capital,
+                                        'percent': weight * 100}
+                              for ticker, weight in short_weights.items()}
+            
+            cash_position = 0  # Fully invested in market-neutral
+            cash_percent = 0
         
         # Calculate incremental changes
         if incremental and self.current_holdings['long']:
@@ -214,7 +285,10 @@ class Portfolio:
             'short_to_buy': list(short_to_buy),
             'short_to_sell': list(short_to_sell),
             'turnover': turnover,
-            'total_value': portfolio_value
+            'total_value': portfolio_value,
+            'cash_position': cash_position,
+            'cash_percent': cash_percent,
+            'long_only': self.long_only
         }
         
         self.positions.append(portfolio)
@@ -357,9 +431,11 @@ class Portfolio:
         """Print performance summary"""
         metrics = self.get_performance_metrics(backtest_df)
         
-        print("\n" + "="*50)
-        print("PORTFOLIO PERFORMANCE SUMMARY")
-        print("="*50)
+        strategy_type = "LONG-ONLY" if self.long_only else "MARKET-NEUTRAL LONG/SHORT"
+        
+        print("\n" + "="*60)
+        print(f"PORTFOLIO PERFORMANCE SUMMARY ({strategy_type})")
+        print("="*60)
         print(f"Total Return:    {metrics.get('total_return', 0):.2%}")
         print(f"Avg Return:      {metrics.get('avg_return', 0):.4%}")
         print(f"Volatility:      {metrics.get('volatility', 0):.4%}")
@@ -375,7 +451,7 @@ class Portfolio:
             print(f"Avg Turnover:    {avg_turnover:.1f} positions/period")
             print(f"Total Trades:    {int(total_trades)}")
         
-        print("="*50 + "\n")
+        print("="*60 + "\n")
     
     def get_current_positions(self) -> dict:
         """
@@ -393,8 +469,10 @@ class Portfolio:
     
     def print_trade_list(self, new_portfolio: dict, predictions_df: pd.DataFrame = None):
         """Print actionable trade list for weekly execution"""
+        strategy_type = "LONG-ONLY" if new_portfolio.get('long_only', True) else "MARKET-NEUTRAL"
+        
         print("\n" + "="*80)
-        print("WEEKLY REBALANCING TRADE LIST")
+        print(f"WEEKLY REBALANCING TRADE LIST ({strategy_type})")
         print("="*80)
         
         # Trades to execute
@@ -406,13 +484,19 @@ class Portfolio:
         long_positions = new_portfolio.get('long_positions', {})
         short_positions = new_portfolio.get('short_positions', {})
         
+        cash_percent = new_portfolio.get('cash_percent', 0)
+        
         total_trades = len(long_to_buy) + len(long_to_sell) + len(short_to_buy) + len(short_to_sell)
         
         if total_trades == 0:
             print("\n✓ No trades needed - portfolio unchanged")
+            if new_portfolio.get('long_only', True):
+                print(f"  Holding: {len(long_positions)} positions, {cash_percent:.1f}% cash")
             return
         
         print(f"\nTotal Trades: {total_trades}")
+        if new_portfolio.get('long_only', True):
+            print(f"Cash Position: {cash_percent:.1f}% (risk-free rate)")
         
         # SELL orders (execute first)
         if long_to_sell or short_to_sell:
@@ -422,8 +506,9 @@ class Portfolio:
             for ticker in long_to_sell:
                 print(f"  CLOSE LONG  | {ticker:6s} | Close entire position")
             
-            for ticker in short_to_sell:
-                print(f"  COVER SHORT | {ticker:6s} | Cover entire position")
+            if not new_portfolio.get('long_only', True):
+                for ticker in short_to_sell:
+                    print(f"  COVER SHORT | {ticker:6s} | Cover entire position")
         
         # BUY orders (execute second)
         if long_to_buy or short_to_buy:

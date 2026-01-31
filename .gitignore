@@ -20,6 +20,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# Preserve portfolio state for weekly rebalancing
+!results/portfolio_state.json
+
 # Virtual Environment
 .venv/
 venv/
@@ -31,11 +34,7 @@ env/
 
 # Data
 ./data/
-*.csv
 *.parquet
-
-# Preserve portfolio state for weekly rebalancing
-!results/portfolio_state.json
 
 # Models
 ./models/

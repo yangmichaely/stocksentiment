@@ -1,158 +1,246 @@
 """
 Stock universe for mining & materials sector
-Hardcoded from ETF holdings: SILJ, COPX, GDX, GDXJ, XLB, XME, PICK, REMX, SLX
-Includes ADRs for major foreign miners
+Dynamically built from ETF holdings: SILJ, COPX, GDX, GDXJ, XLB, XME, PICK, REMX, SLX
+Maps foreign tickers to US-traded equivalents using OTCMKT screener
 """
 
-# ADR mappings: Foreign ticker → US-traded equivalent
-ADR_MAPPINGS = {
-    # Major miners (dual-listed or ADRs)
-    'BHP AU': 'BHP',           # BHP Group (NYSE/ASX dual-listed)
-    'RIO AU': 'RIO',           # Rio Tinto (NYSE/LSE/ASX)
-    'VALE3': 'VALE',           # Vale (NYSE)
-    'ANTO LN': 'ANFGY',        # Antofagasta (OTC ADR)
-    'GLEN LN': None,           # Glencore - no US listing
-    'AAL': 'AAL',              # Anglo American (OTC: AAUKF, keep as AAL)
-    
-    # Australian miners
-    'NST AU': 'NESRF',         # Northern Star (OTC)
-    'EVN AU': 'EVNGY',         # Evolution Mining (OTC ADR)
-    'FMG AU': 'FSUGY',         # Fortescue Metals (OTC ADR)
-    'BSL AU': None,            # Bluescope - limited US trading
-    'MIN AU': None,            # Mineral Resources
-    'IGO AU': None,            # IGO Limited
-    'LYC AU': 'LYSCF',         # Lynas Rare Earths (OTC)
-    'PLS AU': 'PILBF',         # Pilbara Minerals (OTC)
-    'ILU AU': None,            # Iluka Resources
-    
-    # South African miners
-    'GFI': 'GFI',              # Gold Fields (NYSE)
-    'HMY': 'HMY',              # Harmony Gold (NYSE)
-    'SIBANYE': 'SBSW',         # Sibanye-Stillwater
-    
-    # Canadian miners (TSX) - many dual-listed on NYSE/NASDAQ
-    'ARTG CN': 'ARTG',         # Artemis Gold (NASDAQ)
-    'AYA CN': 'AYA',           # Aya Gold & Silver
-    'LUCA CN': 'LUCA',         # Lucara Diamond
-    'LUN CN': 'LUNMF',         # Lundin Mining (OTC)
-    'HBM CN': 'HBM',           # Hudbay Minerals (NYSE)
-    'FM CN': 'FM',             # First Quantum (NASDAQ)
-    'TECK.B CN': 'TECK',       # Teck Resources (NYSE)
-    'IVN CN': 'IVPAF',         # Ivanhoe Mines (OTC)
-    'CS CN': 'CSHHF',          # Capstone Copper (OTC)
-    'ERO CN': 'ERRPF',         # Ero Copper (OTC)
-    'NGEX CN': 'NGEXF',        # NGEx Minerals (OTC)
-    'FOM CN': None,            # Foran Mining
-    'ALS CN': None,            # Altius Minerals
-    'NDM CN': 'NAK',           # Northern Dynasty (NYSE American)
-    'CNL CN': None,            # Contact Gold
-    'SLS CN': None,            # Solaris Resources
-    'OGC CN': 'OGC',           # OceanaGold (NASDAQ)
-    'DPM CN': 'DPM',           # Dundee Precious Metals
-    'LUG CN': 'LUGDF',         # Lundin Gold (OTC)
-    'DSV CN': None,            # Discovery Silver
-    'GMIN CN': None,           # G Mining Ventures
-    'TXG CN': 'TXG',           # Torex Gold (OTC)
-    'KNT CN': 'KNT',           # K92 Mining
-    'SKE CN': 'SKE',           # Skeena Resources
-    'ABRA CN': None,           # Abra Mining
-    'SCZ CN': None,            # Santacruz Silver
-    'WRN CN': 'WRN',           # Western Copper & Gold
-    'USA CN': 'USAMF',         # Americas Gold & Silver (OTC)
-    
-    # Other mappings
-    'MT': 'MT',                # ArcelorMittal (NYSE)
-    'SCCO': 'SCCO',            # Southern Copper (NYSE)
-    'SSAB B': None,            # SSAB - Swedish, limited US access
-}
+import os
+import pandas as pd
+import logging
+from pathlib import Path
 
-# Raw ticker list from ETF holdings (includes country codes)
-RAW_TICKERS = """
-HL AG CDE WPM EXK KGH PW PPTA BOL SS PAAS BVN SSRM SA OR ARTG CN SVM HYMC AYA CN TMQ TFPM FNV FSM SKE CN RGLD VZLA FRES LN ASM HOC LN USA CN PE&OLES* MM MUX ABRA CN SCZ CN WRN IAUX KCN AU GGD CN AGPXX SVL AU FF CN HSTR CN GSVR CN APM CN DV CN SVRS CN AAG CN OM CN PZG TUD CN MKR AU VOLCABC1 PE AGMR CN CUU CN IPT CN CKG CN FPC CN WAM CN MFRISCOA MF CAD PEN WVM CN AMM CN PML CN TV CN
-LUCA CN KGH PW 5713 JP LUN CN BOL SS GLEN LN SCCO FCX HBM CN ANTO LN FM CN 2899 HK BHP AU TECK/B CN IVN CN 2099 HK SFR AU 358 HK CS CN NDA GR 1208 HK 5711 JP ERO CN NGEX CN 1258 HK TGB 3939 HK IE AMAK AB ATYM LN 1515 JP FOM CN ALS CN NDM CN CNL CN SLS CN DVP AU SOLG LN CAML LN LUNR CN WA1 AU
-AEM US NEM US B US GFI US WPM US AU US FNV US KGC US PAAS US NST AU RGLD US AGI US PE&OLES* MF EQX US HL US EVN AU CDE US AG US EDV LN IAG US FRES LN HMY US NGD US EGO US OGC CN 1818 HK DPM CN LUG CN BVN US BTG US AMMN IJ OR US RMS AU GMIN CN DSV CN BRMS IJ ARTG CN SSRM US PRU AU TXG CN GMD AU KNT CN CMM AU ORLA US WGX AU FSM US SA US WDO CN
-PAAS US CDE US AGI US RGLD US EQX US PE&OLES* MF HL US EVN AU AG US EDV LN IAG US HMY US NGD US EGO US OGC CN 1818 HK DPM CN LUG CN BVN US BTG US OR US RMS AU GMIN CN DSV CN BRMS IJ GGP AU ARTG CN SSRM US PRU AU TXG CN GMD AU KNT CN VAU AU CMM AU EXK US ORLA US WGX AU ARMN US RRL AU SKE US CGAU US HOC LN AURA33 BZ TFPM US PPTA US SA US AAUC CN WDO CN 3939 HK EMR AU NG US SVM US AYA CN WAF AU PAF LN VZLA US ASM US RSG AU CYL AU KOZAL TI MUX US IAUX US OBM AU GGD CN BGL AU KCN AU DRD US 6693 HK PNR AU ALK AU GROY US BC8 AU KOZAA TI DC US IDR US MTA US NFG CN SBM AU MEK AU CMCL US GLDG US CTGO US LUCA CN AMI AU FFX AU BGL US FMR CN NIX CN ASM AU VGCX CN
-LIN NEM FCX CRH SHW ECL CTVA NUE APD MLM VMC PPG STLD SW ALB IP AMCR PKG DOW DD IFF BALL CF AVY LYB MOS
-CDE HL UEC FCX RGLD AA NEM BTU RS HCC CNR LEU CMC CLF NUE MP STLD CENX AMR IE USAR MTRN MUX UAMY KALU METC CMP URG SXC IDR WS LTBR ABAT RYI MTUS
-BHP RIO FCX GLEN VALE3 AAL NUE RIO GMEXICOB VAL 1211 TECK.B MT FMG STLD FM BOL IMP ANTO 5401 LUN SCCO 5490 RS TATASTEEL 5713 AA HINDALCO KGH S32 SSW 1378 NHY 3993 VEDL IVN HBM NPH PLS CS LYC 5016 BSL MP CMC JSWSTEEL CLF 5706 5411 2002 MIN PMETAL 2600 SFR 358 TKA XTSLA BVN AMMN 1208 NDA USD GGBR4 5406 SSAB B VOE HCC JINDALSTEL IGO APLAPOLLO 603993 NATIONALUM ERO 5711 BRMS 5714 1258 TKO NGEX MTRN CSTM JSL NMDC KTY CENX ACX LTR 5444 AMR 2027 HILS HINDCOPPER SGM 5741 EREGL.E OUT1V KALU VZLA 4020 APAM USA 3939 IE MDKA GRNG AII SSAB A ARI 5463 PRN 601600 600111 ILU ALLEI BEKB 5471 CIA IPX GOAU4 TMC 103140 FOM QAMC NIC LIF ATYM IMD 600019 ALS DRR PTRO AMG WS SZG 600362 CSNA3 LAC BRAP4 1322 VUL 807 600010 CNL DVP PTCIL 5703 USAR 1515 630 2006 UAMY 426 SLS 975 MDI CMP 5451 3858 639 2015 SGML 600219 601168 600549 1430 RYI 2532 INCO SMR MTUS METC ERA VIO WELCORP NB 9958 600673 933 SXC USHAMART GPIL WA1 TMQ TRMET.E USIM5 CAP RATNAMANI 826 1321 5482 601958 GRAVITA 2211 KRDMD.E 5423 323 ABAT 831 2014 688122 5009 SARDAEN 532527 708 JINDALSAW BRSAN.E JSW 2023 932 VSL NSLNISP AUD 2240 500245 SANDUMA 5440 3833 MOIL 600985 BRE FESA4 5449 1320 MAHSEAMLES MIDHANI SURYAROSNI JAIBALAJI 2362 TTST SALFT EUR PLN ZAR NOK HKD MXN CNH SEK GBP CAD SGD CHF TRY RUB JPY ALRS RUAL 3030 CNY IDR PHP GMKN 773 NLMK LLL MTLRP CHMF
-ALB US 600111 C1 600549 C1 LYC AU MP US 601958 C1 SQM US PLS AU 600392 C1 LTR AU 1772 HK AII CN AMG NA IPX US LAC US ILU AU LAR US 603067 C1 SLI US ERA FP 600456 C1 SGML US VUL AU TROX US AVZ AU
-RIO US BHP US VALE US RIO AU NUE US FMG AU MT US RS US PKX US 5401 JP STLD US 2002 TT 5411 JP TS US CLF US BSL AU CMC US MIN AU GGB US SSABB SS 2027 TT ACX SM EREGL TI 5444 JP OUT1V FH TX US 5463 JP APAM NA SGM AU 8078 JP RUS CN 004020 KS LIF CN SID US KIO SJ 2015 TT WS US VSVS LN
-"""
+logger = logging.getLogger(__name__)
+
+def _load_stock_screener():
+    """Load the OTCMKT stock screener CSV"""
+    holdings_dir = Path(__file__).parent.parent.parent / 'holdings'
+    screener_path = holdings_dir / 'Stock_Screener.csv'
+    
+    if not screener_path.exists():
+        logger.warning(f"Stock screener not found at {screener_path}")
+        return pd.DataFrame()
+    
+    df = pd.read_csv(screener_path)
+    # Create lookup dict: company name -> US ticker
+    # Prioritize ADRs and Foreign Ordinary Shares
+    return df
+
+def _load_etf_holdings():
+    """Load all ETF holdings from the holdings directory"""
+    holdings_dir = Path(__file__).parent.parent.parent / 'holdings'
+    etf_files = ['COPX.csv', 'GDX.csv', 'GDXJ.csv', 'PICK.csv', 'REMX.csv', 
+                 'SILJ.csv', 'SLX.csv', 'XLB.csv', 'XME.csv']
+    
+    all_holdings = []
+    
+    for filename in etf_files:
+        filepath = holdings_dir / filename
+        if not filepath.exists():
+            logger.warning(f"ETF holding file not found: {filepath}")
+            continue
+        
+        df = pd.read_csv(filepath)
+        
+        # Normalize column names (different CSVs use different formats)
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Map different column name variations
+        if 'ticker' in df.columns:
+            df['Ticker'] = df['ticker']
+        elif 'symbol' in df.columns:
+            df['Ticker'] = df['symbol']
+        
+        if 'name' in df.columns:
+            df['Name'] = df['name']
+        elif 'security name' in df.columns:
+            df['Name'] = df['security name']
+        
+        # Add ETF source column
+        df['etf'] = filename.replace('.csv', '')
+        all_holdings.append(df)
+    
+    if not all_holdings:
+        raise FileNotFoundError("No ETF holding files found")
+    
+    combined = pd.concat(all_holdings, ignore_index=True)
+    return combined
+
+def _is_us_ticker(ticker, screener_df=None):
+    """
+    Determine if a ticker is already US-listed (NYSE/NASDAQ)
+    
+    Logic:
+    - Has " US" suffix → US exchange ticker (keep directly)
+    - Has any other country suffix including " CN" (Canadian) → foreign exchange ticker (look up in OTC)
+    - No suffix → assume US exchange listing (NYSE/NASDAQ) like BHP, RIO, VALE, FCX
+    """
+    if not ticker or pd.isna(ticker):
+        return False
+    
+    ticker = str(ticker).strip()
+    
+    # If it has a space, it has a country/exchange code
+    if ' ' in ticker:
+        parts = ticker.split()
+        if len(parts) >= 2:
+            country_code = parts[-1]
+            # Only " US" suffix means US exchange
+            if country_code == 'US':
+                return True
+            # Everything else is foreign exchange listing (including Canadian " CN")
+            return False
+    
+    # No suffix - skip numeric or single-char tickers
+    if ticker.isdigit() or len(ticker) <= 1:
+        return False
+    
+    # No suffix = assume US exchange listing (NYSE/NASDAQ/AMEX)
+    # Examples: BHP, RIO, VALE (NYSE ADRs), FCX, NUE (US companies)
+    return True
+
+
+def _extract_company_name(name):
+    """Clean company name for matching"""
+    if pd.isna(name):
+        return ""
+    
+    name = str(name).upper()
+    # Remove common suffixes
+    for suffix in [' LTD', ' LIMITED', ' CORP', ' CORPORATION', ' INC', ' PLC', 
+                   ' SA', ' AB', ' NV', ' AG', ' SE', ' CO', ' GROUP']:
+        name = name.replace(suffix, '')
+    
+    return name.strip()
+
+def _find_us_ticker(company_name, ticker_hint, screener_df):
+    """
+    Find the US-traded version of a foreign stock using the OTCMKT screener
+    
+    Args:
+        company_name: Name of the company from ETF holdings
+        ticker_hint: Original ticker (for logging/debugging)
+        screener_df: OTCMKT screener dataframe
+    
+    Returns:
+        US ticker symbol or None
+    """
+    if screener_df.empty:
+        return None
+    
+    clean_name = _extract_company_name(company_name)
+    if not clean_name:
+        return None
+    
+    # Search for matching company in screener
+    # Look for ADRs first, then Foreign Ordinary Shares
+    screener_df['clean_name'] = screener_df['Security Name'].apply(_extract_company_name)
+    
+    # Exact match
+    matches = screener_df[screener_df['clean_name'] == clean_name]
+    
+    # If no exact match, try partial match (contains)
+    if matches.empty:
+        matches = screener_df[screener_df['clean_name'].str.contains(clean_name, na=False, regex=False)]
+    
+    if matches.empty:
+        return None
+    
+    # Prioritize ADRs over ordinary shares
+    adrs = matches[matches['Sec Type'] == 'ADRs']
+    if not adrs.empty:
+        return adrs.iloc[0]['Symbol']
+    
+    # Next priority: Foreign Ordinary Shares
+    foreign_ord = matches[matches['Sec Type'] == 'Foreign Ordinary Shares']
+    if not foreign_ord.empty:
+        return foreign_ord.iloc[0]['Symbol']
+    
+    # Fallback to first match
+    return matches.iloc[0]['Symbol']
 
 def _parse_tickers():
-    """Parse raw ticker list, map foreign stocks to ADRs, and include US/Canadian stocks"""
-    all_tickers = set()
+    """
+    Parse ETF holdings and map to US-traded tickers
     
-    for ticker in RAW_TICKERS.split():
-        # Skip currency codes
-        if ticker in ['EUR', 'PLN', 'ZAR', 'NOK', 'HKD', 'MXN', 'CNH', 'SEK', 'GBP', 
-                      'CAD', 'SGD', 'CHF', 'TRY', 'RUB', 'JPY', 'CNY', 'IDR', 'PHP', 'AUD', 'USD']:
-            continue
-        
-        if ticker.isdigit():
-            continue
-        
-        # Handle tickers with country codes
-        parts = ticker.split()
-        
-        if len(parts) == 2:
-            symbol, country = parts
-            foreign_ticker = f"{symbol} {country}"
-            
-            # Check if there's an ADR mapping
-            if foreign_ticker in ADR_MAPPINGS:
-                adr = ADR_MAPPINGS[foreign_ticker]
-                if adr:  # Only add if mapping exists (skip None values)
-                    all_tickers.add(adr)
-                continue
-            
-            # Keep US and Canadian stocks (traded on North American exchanges)
-            if country in ['US', 'CN']:
-                # Clean up special characters
-                symbol = symbol.replace('/', '.').replace('*', '')
-                if symbol and not symbol.isdigit():
-                    all_tickers.add(symbol)
-        
-        elif len(parts) == 1:
-            # No country code - check if it's a known ADR or US stock
-            symbol = parts[0]
-            
-            # Check if it's in ADR mappings (some have no country code)
-            if symbol in ADR_MAPPINGS:
-                adr = ADR_MAPPINGS[symbol]
-                if adr:
-                    all_tickers.add(adr)
-                continue
-            
-            # Clean up special characters
-            symbol = symbol.replace('/', '.').replace('*', '')
-            
-            # Skip if it's a foreign exchange code pattern (2 letters + 2 letters)
-            if len(symbol) == 4 and symbol[:2].isalpha() and symbol[2:].isalpha():
-                continue
-            
-            # Skip pure numeric or very short codes likely to be foreign
-            if symbol.isdigit() or len(symbol) <= 1:
-                continue
-            
-            # Skip obvious foreign patterns (ends with numbers like 5713, 2899, etc.)
-            if symbol and symbol[-1].isdigit() and len(symbol) > 2:
-                # Check if it's mostly numbers (foreign ticker pattern)
-                if sum(c.isdigit() for c in symbol) >= len(symbol) / 2:
-                    continue
-            
-            if symbol:
-                all_tickers.add(symbol)
+    Process:
+    1. Load all ETF holdings
+    2. For each ticker:
+       - If US-based: include directly
+       - If foreign: look up company name in OTCMKT screener for US ticker
+       - Skip if no US version found
+    """
+    logger.info("Loading ETF holdings and stock screener...")
     
-    return sorted(list(all_tickers))
+    holdings_df = _load_etf_holdings()
+    screener_df = _load_stock_screener()
+    
+    us_tickers = set()
+    foreign_mapped = 0
+    us_direct = 0
+    discarded = 0
+    
+    # Group by ticker to avoid duplicates across ETFs
+    # Use custom aggregation to prefer non-NaN names
+    unique_holdings = holdings_df.groupby('Ticker').agg({
+        'Name': lambda x: x.dropna().iloc[0] if not x.dropna().empty else None,
+        'etf': 'first'  # Just take first ETF for reference
+    }).reset_index()
+    
+    logger.info(f"Processing {len(unique_holdings)} unique tickers from {len(holdings_df)} total holdings")
+    
+    for _, row in unique_holdings.iterrows():
+        ticker = row['Ticker']
+        name = row.get('Name', '')
+        
+        # Check if it's a US ticker (pass screener for better detection)
+        if _is_us_ticker(ticker, screener_df):
+            # Clean up ticker (remove slashes, etc.)
+            clean_ticker = str(ticker).split()[0]  # Take first part before any space
+            clean_ticker = clean_ticker.replace('/', '.').replace('*', '')
+            
+            # Skip purely numeric tickers or single characters
+            if clean_ticker and len(clean_ticker) > 1 and not clean_ticker.isdigit():
+                us_tickers.add(clean_ticker)
+                us_direct += 1
+        else:
+            # Foreign ticker - check if it trades on US exchange under same symbol
+            # Extract base ticker (e.g., "HBM CN" -> "HBM", "TECK/B CN" -> "TECK.B")
+            base_ticker = str(ticker).split()[0]
+            base_ticker = base_ticker.replace('/', '.').replace('*', '')
+            
+            # First try to find OTC equivalent
+            us_ticker = _find_us_ticker(name, ticker, screener_df)
+            
+            if us_ticker:
+                # Found OTC mapping
+                us_tickers.add(us_ticker)
+                foreign_mapped += 1
+                logger.debug(f"Mapped {ticker} ({name}) -> {us_ticker} (OTC)")
+            elif base_ticker and len(base_ticker) > 1 and not base_ticker.isdigit():
+                # No OTC mapping, but assume base ticker trades on US exchange (NYSE/NASDAQ)
+                # This handles Canadian stocks like "HBM CN" -> "HBM" that are dual-listed
+                us_tickers.add(base_ticker)
+                foreign_mapped += 1
+                logger.debug(f"Mapped {ticker} ({name}) -> {base_ticker} (assumed US exchange)")
+            else:
+                discarded += 1
+                logger.debug(f"No US ticker found for {ticker} ({name})")
+    
+    logger.info(f"Universe built: {len(us_tickers)} tickers")
+    logger.info(f"  - {us_direct} US/Canadian tickers added directly")
+    logger.info(f"  - {foreign_mapped} foreign tickers mapped to US equivalents")
+    logger.info(f"  - {discarded} tickers discarded (no US equivalent)")
+    
+    return sorted(us_tickers)
 
-
-# Pre-parsed universe
-UNIVERSE = _parse_tickers()
+def get_universe():
+    """
+    Returns the stock universe as a sorted list of tickers
+    """
+    return _parse_tickers()
 
 # Benchmark ETFs
 BENCHMARK_ETFS = ['XLB', 'GDX', 'COPX', 'SLV', 'PICK', 'XME', 'SLX', 'GDXJ', 'SILJ', 'REMX']
-
 
 def get_all_tickers(refresh=False):
     """
@@ -164,8 +252,7 @@ def get_all_tickers(refresh=False):
     Returns:
         List of ticker symbols
     """
-    return UNIVERSE.copy()
-
+    return get_universe()
 
 def get_benchmark_etfs():
     """
@@ -176,10 +263,9 @@ def get_benchmark_etfs():
     """
     return BENCHMARK_ETFS.copy()
 
-
 def classify_by_segment(tickers):
     """
-    Classify tickers by mining segment
+    Classify tickers by mining segment (simplified heuristic-based)
     
     Args:
         tickers: List of ticker symbols
@@ -187,36 +273,53 @@ def classify_by_segment(tickers):
     Returns:
         Dict mapping segment names to lists of tickers
     """
-    # Simplified classification based on known ETF composition
-    segments = {
-        'precious_metals': ['AEM', 'NEM', 'AU', 'FNV', 'WPM', 'PAAS', 'RGLD', 'HL', 
-                           'AG', 'CDE', 'KGC', 'EQX', 'GFI', 'BTG', 'OR', 'AGI',
-                           'HMY', 'SBSW', 'EVNGY', 'NESRF'],
-        'base_metals': ['FCX', 'SCCO', 'HBM', 'FM', 'LUNMF', 'TGB', 'TECK', 'IVPAF', 
-                       'CSHHF', 'ERRPF', 'ANFGY', 'VALE'],
-        'industrial_metals': ['NUE', 'STLD', 'CLF', 'CMC', 'RS', 'AA', 'CENX', 'HCC',
-                             'MT', 'BHP', 'RIO', 'FSUGY'],
-        'rare_earth': ['MP', 'LYSCF', 'PILBF', 'LTR', 'ILU', 'AII'],
-        'materials_broad': ['LIN', 'APD', 'ECL', 'SHW', 'PPG', 'CTVA', 'ALB', 'DOW', 
-                           'DD', 'IP', 'PKG', 'IFF', 'BALL', 'CF', 'MOS']
+    # Common precious metals keywords
+    precious_keywords = ['GOLD', 'SILVER', 'PLAT', 'PALLA', 'GLD', 'SLV', 'RGLD', 
+                         'FNV', 'WPM', 'PAAS', 'HL', 'AG', 'CDE']
+    
+    # Common base metals keywords
+    base_keywords = ['COPPER', 'COPP', 'ZINC', 'NICKEL', 'FCX', 'SCCO', 'TGB',
+                     'HBM', 'FM', 'TECK']
+    
+    # Industrial/steel keywords
+    industrial_keywords = ['STEEL', 'NUCOR', 'NUE', 'STLD', 'CLF', 'CMC', 'RS', 
+                          'MT', 'AA']
+    
+    # Rare earth keywords
+    rare_earth_keywords = ['RARE', 'EARTH', 'MP', 'LYC', 'REE']
+    
+    result = {
+        'precious_metals': [],
+        'base_metals': [],
+        'industrial_metals': [],
+        'rare_earth': [],
+        'materials_broad': [],
+        'other': []
     }
     
-    result = {k: [] for k in segments.keys()}
-    result['other'] = []
-    
     for ticker in tickers:
-        classified = False
-        for segment, segment_tickers in segments.items():
-            if ticker in segment_tickers:
-                result[segment].append(ticker)
-                classified = True
-                break
+        ticker_upper = ticker.upper()
         
-        if not classified:
+        # Check keywords
+        if any(kw in ticker_upper for kw in precious_keywords):
+            result['precious_metals'].append(ticker)
+        elif any(kw in ticker_upper for kw in base_keywords):
+            result['base_metals'].append(ticker)
+        elif any(kw in ticker_upper for kw in industrial_keywords):
+            result['industrial_metals'].append(ticker)
+        elif any(kw in ticker_upper for kw in rare_earth_keywords):
+            result['rare_earth'].append(ticker)
+        else:
             result['other'].append(ticker)
     
     return result
 
+if __name__ == '__main__':
+    # Test the universe
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    
+    universe = get_universe()
+    print(f"\nTotal universe size: {len(universe)}")
+    print(f"\nSample tickers: {universe[:20]}")
 
-# For backwards compatibility
-SECTOR_KEYWORDS = classify_by_segment(UNIVERSE)

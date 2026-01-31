@@ -231,7 +231,8 @@ def train_and_predict(features_df=None):
         
         # Backtest portfolio
         print("\nBacktesting portfolio...")
-        portfolio = Portfolio(long_percentile=80, short_percentile=20)
+        # Long-only strategy with absolute threshold and top-15 selection
+        portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True)
         backtest_df = portfolio.backtest(predictions_df)
         
         if not backtest_df.empty:
@@ -484,7 +485,8 @@ def weekly_rebalance():
     print("\n[5/5] Portfolio Rebalancing...")
     
     # Load existing portfolio state
-    portfolio = Portfolio(long_percentile=80, short_percentile=20)
+    # Long-only strategy with absolute threshold and top-15 selection
+    portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True)
     has_existing = portfolio.load_state()
     
     if not has_existing:
