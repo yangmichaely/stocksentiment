@@ -167,6 +167,49 @@ class XGBoostRanker:
         
         return self.model.predict(X_scaled)
     
+    def train_on_period(self, df: pd.DataFrame, train_end_date, target_col='forward_return_5d', min_train_periods=20):
+        """
+        Train model on data up to (but not including) train_end_date
+        Used for walk-forward analysis
+        
+        Args:
+            df: Full dataframe with features
+            train_end_date: Train on all data before this date
+            target_col: Target column
+            min_train_periods: Minimum number of training samples required
+        
+        Returns:
+            Training metrics or None if insufficient data
+        """
+        # Filter training data (only past)
+        train_df = df[df['date'] < train_end_date].copy()
+        train_df = train_df[train_df[target_col].notna()]
+        
+        if len(train_df) < min_train_periods:
+            print(f"  Insufficient training data: {len(train_df)} < {min_train_periods}")
+            return None
+        
+        # Prepare features
+        X, y, feature_columns = self.prepare_features(train_df, target_col)
+        
+        # Store feature columns
+        self.feature_columns = feature_columns
+        
+        # Scale and train (no train/test split - use all available past data)
+        X_scaled = self.scaler.fit_transform(X)
+        self.model.fit(X_scaled, y, verbose=False)
+        
+        # Quick validation
+        train_score = self.model.score(X_scaled, y)
+        y_pred = self.model.predict(X_scaled)
+        ic = np.corrcoef(y, y_pred)[0, 1] if len(y) > 1 else 0
+        
+        return {
+            'train_samples': len(X),
+            'train_r2': train_score,
+            'train_ic': ic
+        }
+    
     def rank_stocks(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Rank stocks by predicted return

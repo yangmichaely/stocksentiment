@@ -229,19 +229,34 @@ def train_and_predict(features_df=None):
         eval_metrics = evaluate_predictions(predictions_df)
         print_evaluation_report(eval_metrics)
         
-        # Backtest portfolio
-        print("\nBacktesting portfolio...")
+        # Walk-forward backtest (out-of-sample only)
+        print("\n" + "="*80)
+        print("WALK-FORWARD BACKTEST")
+        print("="*80)
+        print("Training model incrementally and predicting out-of-sample...")
+        print("This ensures all predictions are on data the model has never seen.\n")
+        
+        # Create fresh model instance for walk-forward
+        wf_model = XGBoostRanker()
+        
         # Long-only strategy with absolute threshold and top-15 selection
         portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True)
-        backtest_df = portfolio.backtest(predictions_df)
+        
+        # Run walk-forward backtest on raw features (not pre-made predictions)
+        backtest_df = portfolio.backtest_walk_forward(
+            features_df=features_df,  # Raw features, not predictions
+            model=wf_model,
+            returns_col='forward_return_5d',
+            target_col='forward_return_5d',
+            incremental=True,
+            min_train_periods=30  # Start backtest after 30 periods of training data
+        )
         
         if not backtest_df.empty:
-            portfolio.print_performance_summary(backtest_df)
-            
             # Save backtest results
-            backtest_path = config.results_dir / f'backtest_{datetime.now().strftime("%Y%m%d")}.parquet'
+            backtest_path = config.results_dir / f'backtest_walkforward_{datetime.now().strftime("%Y%m%d")}.parquet'
             save_dataframe(backtest_df, backtest_path)
-            print(f"✓ Backtest results saved to: {backtest_path}")
+            print(f"\n✓ Walk-forward backtest results saved to: {backtest_path}")
         
         # Print top predictions
         print("\n" + "="*60)
@@ -278,6 +293,7 @@ def train_and_predict(features_df=None):
             long_sorted = sorted(long_positions_detail.items(), 
                                key=lambda x: x[1]['weight'], reverse=True)
             
+            positions_printed = 0
             for ticker, details in long_sorted:
                 # Get prediction details for this ticker
                 ticker_pred = predictions_df[(predictions_df['ticker'] == ticker) & 
@@ -290,6 +306,9 @@ def train_and_predict(features_df=None):
                           f"Sentiment: {sentiment:6.3f} | Predicted: {pred_return:+.2%}")
                 else:
                     print(f"  {ticker:6s} | {details['percent']:5.2f}% | ${details['dollars']:>12,.0f}")
+                positions_printed += 1
+            
+            print(f"\n  [Printed {positions_printed}/{len(long_sorted)} positions]")
         else:
             print("  (No long positions)")
         

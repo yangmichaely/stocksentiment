@@ -207,19 +207,21 @@ class TechnicalFeatureEngineer:
         
         print(f"Calculating relative performance vs {benchmark}...")
         
-        # Get benchmark returns
-        benchmark_df = df[df['ticker'] == benchmark][['date', 'forward_return_5d']].copy()
-        benchmark_df = benchmark_df.rename(columns={'forward_return_5d': 'benchmark_return'})
+        # CRITICAL: Use HISTORICAL returns, not forward returns (no look-ahead bias)
+        # Calculate benchmark's historical return
+        benchmark_df = df[df['ticker'] == benchmark][['date', 'Close']].copy()
+        benchmark_df['benchmark_return_5d'] = benchmark_df['Close'].pct_change(5)
+        benchmark_df = benchmark_df[['date', 'benchmark_return_5d']]
         
         # Merge with main dataframe
         df = df.merge(benchmark_df, on='date', how='left')
         
-        # Calculate relative return (alpha)
-        if 'forward_return_5d' in df.columns and 'benchmark_return' in df.columns:
-            df['relative_return_5d'] = df['forward_return_5d'] - df['benchmark_return']
-            
-            # Binary target: outperform benchmark or not
-            df['outperform_benchmark'] = (df['relative_return_5d'] > 0).astype(int)
+        # Calculate relative HISTORICAL performance (not forward)
+        if 'historical_return_5d' in df.columns and 'benchmark_return_5d' in df.columns:
+            df['relative_strength_5d'] = df['historical_return_5d'] - df['benchmark_return_5d']
+        
+        # Note: We removed 'relative_return_5d' as it was using forward returns (data leakage)
+        # We removed 'outperform_benchmark' as it was also using forward returns
         
         return df
     

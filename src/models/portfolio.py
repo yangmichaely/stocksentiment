@@ -295,9 +295,145 @@ class Portfolio:
         
         return portfolio
     
+    def backtest_walk_forward(self, features_df: pd.DataFrame, model, returns_col='forward_return_5d', 
+                             target_col='forward_return_5d', incremental=True, min_train_periods=30) -> pd.DataFrame:
+        """
+        Walk-forward backtest: train model on expanding window, predict out-of-sample only
+        
+        This eliminates look-ahead bias by ensuring predictions are always out-of-sample:
+        - For each period, train on ALL data BEFORE that period
+        - Predict ONLY on that period (never seen by model)
+        - Construct portfolio and measure performance
+        
+        Args:
+            features_df: DataFrame with features and forward returns (NOT predictions)
+            model: XGBoostRanker instance (will be retrained each period)
+            returns_col: Column with actual returns to evaluate
+            target_col: Column to train model on
+            incremental: If True, track turnover from incremental changes
+            min_train_periods: Minimum training periods before starting backtest
+        
+        Returns:
+            DataFrame with backtest results
+        """
+        print("\n" + "="*80)
+        print("WALK-FORWARD BACKTEST (Out-of-Sample Only)")
+        print("="*80)
+        print("Each prediction is made on data the model has NEVER seen during training.")
+        print("This prevents look-ahead bias and overfitting.\n")
+        
+        if 'date' not in features_df.columns:
+            print("Warning: No date column found")
+            return pd.DataFrame()
+        
+        # Get unique dates sorted
+        dates = sorted(features_df['date'].unique())
+        
+        if len(dates) < min_train_periods + 5:
+            print(f"Insufficient data: need at least {min_train_periods + 5} periods, have {len(dates)}")
+            return pd.DataFrame()
+        
+        # Reset portfolio state
+        self.current_holdings = {'long': [], 'short': []}
+        self.positions = []
+        
+        results = []
+        all_predictions = []
+        
+        print(f"Total periods: {len(dates)}")
+        print(f"Training window: expanding (starts with {min_train_periods} periods)")
+        print(f"Out-of-sample periods: {len(dates) - min_train_periods}\n")
+        
+        # Walk forward through time
+        for i, current_date in enumerate(dates[min_train_periods:], start=min_train_periods):
+            # Train on all data BEFORE current_date
+            train_metrics = model.train_on_period(features_df, current_date, target_col, min_train_periods)
+            
+            if train_metrics is None:
+                print(f"  Period {i+1}/{len(dates)}: Skipping {current_date} (insufficient training data)")
+                continue
+            
+            # Get current period data (out-of-sample)
+            current_period = features_df[features_df['date'] == current_date].copy()
+            
+            if len(current_period) == 0:
+                continue
+            
+            # Make predictions (out-of-sample)
+            predictions = model.predict(current_period)
+            current_period['predicted_return'] = predictions
+            
+            # Construct portfolio based on predictions
+            portfolio = self.construct_portfolio(current_period, current_date, incremental=incremental)
+            
+            # CRITICAL FIX: Evaluate on REALIZED returns (forward_return_5d is the actual outcome)
+            # We use the current period's forward_return_5d which represents what actually happened
+            # in the next 5 days AFTER this prediction was made.
+            # This is correct because forward_return_5d was calculated as shift(-5), meaning
+            # it contains the future return that we want to predict.
+            
+            # Calculate actual returns from the forward return column
+            long_stocks = current_period[current_period['ticker'].isin(portfolio['long'])]
+            short_stocks = current_period[current_period['ticker'].isin(portfolio['short'])]
+            
+            # Verify returns_col exists and has valid data
+            if returns_col not in current_period.columns:
+                print(f"  Warning: {returns_col} not found in period {current_date}")
+                continue
+            
+            long_return = long_stocks[returns_col].mean() if len(long_stocks) > 0 else 0
+            short_return = short_stocks[returns_col].mean() if len(short_stocks) > 0 else 0
+            portfolio_return = long_return - short_return
+            
+            # Store predictions for later IC calculation
+            all_predictions.append(current_period[['ticker', 'date', 'predicted_return', returns_col]])
+            
+            results.append({
+                'date': current_date,
+                'long_return': long_return,
+                'short_return': short_return,
+                'portfolio_return': portfolio_return,
+                'num_long': portfolio['num_long'],
+                'num_short': portfolio['num_short'],
+                'turnover': portfolio.get('turnover', 0),
+                'trades_executed': portfolio.get('turnover', 0) > 0,
+                'train_samples': train_metrics['train_samples'],
+                'train_ic': train_metrics['train_ic']
+            })
+            
+            # Progress update every 10 periods
+            if (i - min_train_periods + 1) % 10 == 0:
+                print(f"  Completed {i - min_train_periods + 1}/{len(dates) - min_train_periods} periods...")
+        
+        if not results:
+            print("No valid backtest periods")
+            return pd.DataFrame()
+        
+        results_df = pd.DataFrame(results)
+        predictions_df = pd.concat(all_predictions, ignore_index=True)
+        
+        print(f"\n" + "="*80)
+        print("BACKTEST RESULTS (Out-of-Sample Only)")
+        print("="*80)
+        print(f"Periods: {len(results_df)}")
+        print(f"Avg Long Return: {results_df['long_return'].mean():.4%}")
+        print(f"Avg Short Return: {results_df['short_return'].mean():.4%}")
+        print(f"Avg Portfolio Return: {results_df['portfolio_return'].mean():.4%}")
+        print(f"Avg Turnover: {results_df['turnover'].mean():.1f} positions/period")
+        print(f"Total Trades: {int(results_df['turnover'].sum())}")
+        print(f"Avg Train IC: {results_df['train_ic'].mean():.4f}")
+        print(f"Sharpe Ratio: {self.calculate_sharpe(results_df['portfolio_return']):.2f}")
+        
+        # Print full performance summary with IC and hit rate
+        self.print_performance_summary(results_df, predictions_df)
+        
+        return results_df
+    
     def backtest(self, predictions_df: pd.DataFrame, returns_col='forward_return', incremental=True) -> pd.DataFrame:
         """
-        Backtest portfolio strategy with incremental rebalancing
+        DEPRECATED: In-sample backtest (may contain look-ahead bias)
+        
+        Use backtest_walk_forward() instead for proper out-of-sample testing.
         
         Args:
             predictions_df: DataFrame with predictions and actual returns
@@ -307,7 +443,8 @@ class Portfolio:
         Returns:
             DataFrame with backtest results
         """
-        print("\nBacktesting portfolio strategy...")
+        print("\n⚠️  WARNING: Using in-sample backtest. Results may be overly optimistic.")
+        print("   For accurate performance, use backtest_walk_forward() instead.\n")
         
         if 'date' not in predictions_df.columns:
             print("Warning: No date column found")
@@ -365,6 +502,9 @@ class Portfolio:
         print(f"Total Trades: {int(results_df['turnover'].sum())}")
         print(f"Sharpe Ratio: {self.calculate_sharpe(results_df['portfolio_return']):.2f}")
         
+        # Print full performance summary with IC and hit rate
+        self.print_performance_summary(results_df, predictions_df)
+        
         return results_df
     
     def calculate_sharpe(self, returns: pd.Series, risk_free_rate=0.02) -> float:
@@ -385,12 +525,13 @@ class Portfolio:
         excess_return = returns.mean() - (risk_free_rate / 52)
         return (excess_return / returns.std()) * np.sqrt(52)
     
-    def get_performance_metrics(self, backtest_df: pd.DataFrame) -> dict:
+    def get_performance_metrics(self, backtest_df: pd.DataFrame, predictions_df: pd.DataFrame = None) -> dict:
         """
         Calculate comprehensive performance metrics
         
         Args:
             backtest_df: Backtest results dataframe
+            predictions_df: Original predictions dataframe with predicted_return and forward_return
         
         Returns:
             Dict with performance metrics
@@ -415,6 +556,22 @@ class Portfolio:
         # Win rate
         win_rate = (returns > 0).sum() / len(returns)
         
+        # Information Coefficient (correlation between predicted and actual returns)
+        ic = np.nan
+        if predictions_df is not None and 'predicted_return' in predictions_df.columns and 'forward_return' in predictions_df.columns:
+            valid_preds = predictions_df[['predicted_return', 'forward_return']].dropna()
+            if len(valid_preds) > 1:
+                ic = np.corrcoef(valid_preds['predicted_return'], valid_preds['forward_return'])[0, 1]
+        
+        # Hit Rate (% of stocks where predicted direction matched actual direction)
+        hit_rate = np.nan
+        if predictions_df is not None and 'predicted_return' in predictions_df.columns and 'forward_return' in predictions_df.columns:
+            valid_preds = predictions_df[['predicted_return', 'forward_return']].dropna()
+            if len(valid_preds) > 0:
+                predicted_direction = valid_preds['predicted_return'] > 0
+                actual_direction = valid_preds['forward_return'] > 0
+                hit_rate = (predicted_direction == actual_direction).sum() / len(valid_preds)
+        
         metrics = {
             'total_return': cumulative_return,
             'avg_return': returns.mean(),
@@ -422,14 +579,16 @@ class Portfolio:
             'sharpe_ratio': sharpe,
             'max_drawdown': max_drawdown,
             'win_rate': win_rate,
+            'information_coefficient': ic,
+            'hit_rate': hit_rate,
             'num_periods': len(returns)
         }
         
         return metrics
     
-    def print_performance_summary(self, backtest_df: pd.DataFrame):
+    def print_performance_summary(self, backtest_df: pd.DataFrame, predictions_df: pd.DataFrame = None):
         """Print performance summary"""
-        metrics = self.get_performance_metrics(backtest_df)
+        metrics = self.get_performance_metrics(backtest_df, predictions_df)
         
         strategy_type = "LONG-ONLY" if self.long_only else "MARKET-NEUTRAL LONG/SHORT"
         
@@ -442,6 +601,12 @@ class Portfolio:
         print(f"Sharpe Ratio:    {metrics.get('sharpe_ratio', 0):.2f}")
         print(f"Max Drawdown:    {metrics.get('max_drawdown', 0):.2%}")
         print(f"Win Rate:        {metrics.get('win_rate', 0):.2%}")
+        ic = metrics.get('information_coefficient', np.nan)
+        if not np.isnan(ic):
+            print(f"Info Coeff (IC): {ic:.4f}")
+        hit_rate = metrics.get('hit_rate', np.nan)
+        if not np.isnan(hit_rate):
+            print(f"Hit Rate:        {hit_rate:.2%}")
         print(f"Periods:         {metrics.get('num_periods', 0)}")
         
         # Add turnover stats if available
