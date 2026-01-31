@@ -1,0 +1,45 @@
+# Core Data & ML
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+lightgbm
+torch
+transformers
+
+# Financial Data
+yfinance
+alpha-vantage
+sec-edgar-downloader
+pyrate-limiter<3.0.0
+
+# Sentiment Analysis
+vaderSentiment
+textblob
+
+# Data Collection
+praw
+requests
+beautifulsoup4
+lxml
+newspaper3k
+
+# Time Series
+statsmodels
+
+# Visualization
+matplotlib
+seaborn
+plotly
+
+# Utils
+python-dotenv
+tqdm
+joblib
+pyyaml
+pyarrow
+
+# Testing & Quality
+pytest
+black

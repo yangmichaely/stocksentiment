@@ -1,0 +1,217 @@
+# Mining & Materials Sentiment Stock Picker Configuration
+
+# Universe Definition
+# Stock universe is dynamically built from ETF holdings (see src/utils/etf_holdings.py)
+universe:
+  # Source ETFs for discovering stocks
+  source_etfs:
+    # Large-cap / Broad materials
+    - XLB    # Materials Select Sector SPDR
+    
+    # Mid-cap mining / materials
+    - GDX    # VanEck Gold Miners
+    - COPX   # Global X Copper Miners
+    - REMX   # VanEck Rare Earth/Strategic Metals
+    - PICK   # iShares MSCI Global Metals & Mining
+    
+    # Small-cap mining / materials
+    - XME    # SPDR S&P Metals & Mining
+    - SLX    # VanEck Steel
+    - GDXJ   # VanEck Junior Gold Miners
+    - SILJ   # ETFMG Prime Junior Silver Miners
+    
+    # Precious metals
+    - SLV    # iShares Silver Trust
+  
+  # Cache settings for ETF holdings
+  cache_days: 7  # Refresh holdings every 7 days
+  
+  # Note: Universe is automatically built from all holdings across these ETFs
+  # This typically includes 150+ stocks across:
+  #   - Large-cap materials & chemicals
+  #   - Mid-cap miners (gold, copper, diversified)
+  #   - Small-cap / junior miners
+  #   - Precious metals (gold, silver)
+  #   - Base metals (copper, zinc, aluminum)
+  #   - Steel producers
+  #   - Rare earth & strategic metals
+  #   - Lithium & battery materials
+
+# Data Collection Settings
+data_collection:
+  reddit:
+    subreddits:
+      - investing
+      - stocks
+      - commodities
+      - mining
+      - wallstreetbets
+    post_limit: 100
+    lookback_days: 30
+  
+  news:
+    sources:
+      - reuters
+      - bloomberg
+      - mining.com
+      - kitco
+    keywords:
+      - mining
+      - metals
+      - commodities
+      - copper
+      - gold
+      - lithium
+      - steel
+    lookback_days: 30
+  
+  earnings:
+    lookback_quarters: 4
+  
+  sec:
+    form_types:
+      - 8-K   # Material events
+      - 10-Q  # Quarterly reports
+      - 10-K  # Annual reports
+
+# Sentiment Analysis Settings
+sentiment:
+  models:
+    finbert:
+      model_name: "ProsusAI/finbert"
+      batch_size: 32
+      max_length: 512
+    
+  domain_lexicon:
+    supply_risk_keywords:
+      - strike
+      - shutdown
+      - outage
+      - flood
+      - accident
+      - disruption
+      - closure
+      - suspension
+      - halt
+      - delay
+    
+    demand_keywords:
+      - china pmi
+      - ev demand
+      - infrastructure
+      - construction
+      - manufacturing
+      - consumption
+      - deficit
+      - surplus
+    
+    cost_keywords:
+      - energy price
+      - labor cost
+      - inflation
+      - diesel
+      - electricity
+      - wage
+    
+    regulatory_keywords:
+      - permit
+      - esg
+      - environmental
+      - regulation
+      - compliance
+      - tailings
+      - emission
+
+# Feature Engineering
+features:
+  time_windows:
+    - 1   # 1 day
+    - 5   # 1 week
+    - 21  # 1 month
+  
+  aggregations:
+    - mean
+    - std
+    - min
+    - max
+    - skew
+  
+  sentiment_metrics:
+    - sentiment_score
+    - supply_risk_score
+    - demand_score
+    - cost_pressure_score
+    - regulatory_risk_score
+    - sentiment_momentum
+    - negative_spike_ratio
+
+# Modeling
+modeling:
+  train_test_split: 0.7
+  validation_split: 0.15
+  
+  baseline:
+    model_type: "logistic_regression"
+    target: "outperform_etf"  # Binary: beat XLB or not
+  
+  advanced:
+    model_type: "xgboost"
+    objective: "reg:squarederror"
+    target: "forward_return_5d"
+    
+  hyperparameters:
+    xgboost:
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+  
+  portfolio:
+    long_percentile: 80  # Top 20%
+    short_percentile: 20  # Bottom 20%
+    rebalance_frequency: "weekly"
+
+# Evaluation
+evaluation:
+  metrics:
+    - information_coefficient
+    - sharpe_ratio
+    - hit_rate
+    - alpha
+    - max_drawdown
+    - turnover
+  
+  benchmark: "XLB"
+  
+  backtest:
+    start_date: "2020-01-01"
+    end_date: "2025-01-01"
+    initial_capital: 100000
+    transaction_cost: 0.001  # 10 bps
+
+# Time Alignment
+time_alignment:
+  # Sentiment from Mon-Fri -> Predict next Mon-Fri return
+  forward_returns:
+    - 1   # T+1
+    - 5   # 1 week
+    - 21  # 1 month
+  
+  # Earnings window handling
+  earnings_window:
+    pre_days: 2
+    post_days: 5
+
+# Output Settings
+output:
+  save_predictions: true
+  save_features: true
+  save_models: true
+  generate_reports: true
+  
+  paths:
+    data: "data"
+    models: "models"
+    results: "results"
+    logs: "logs"
