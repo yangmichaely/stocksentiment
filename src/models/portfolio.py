@@ -23,6 +23,46 @@ class Portfolio:
         self.short_percentile = short_percentile
         self.positions = []
         self.current_holdings = {'long': [], 'short': []}  # Track current positions
+        self.state_file = config.results_dir / 'portfolio_state.json'
+    
+    def save_state(self):
+        """Save current portfolio state for weekly rebalancing"""
+        if not self.positions:
+            return
+        
+        state = {
+            'date': str(self.positions[-1].get('date', datetime.now().date())),
+            'current_holdings': self.current_holdings,
+            'last_portfolio': self.positions[-1],
+            'long_percentile': self.long_percentile,
+            'short_percentile': self.short_percentile
+        }
+        
+        import json
+        with open(self.state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+        print(f"✓ Portfolio state saved: {self.state_file}")
+    
+    def load_state(self) -> bool:
+        """Load previous portfolio state. Returns True if state loaded."""
+        if not self.state_file.exists():
+            print("No previous portfolio state found (first run)")
+            return False
+        
+        import json
+        try:
+            with open(self.state_file, 'r') as f:
+                state = json.load(f)
+            
+            self.current_holdings = state['current_holdings']
+            self.positions = [state['last_portfolio']]
+            
+            print(f"✓ Loaded portfolio state from {state['date']}")
+            print(f"  Current: {len(self.current_holdings['long'])} long, {len(self.current_holdings['short'])} short")
+            return True
+        except Exception as e:
+            print(f"Warning: Could not load state: {e}")
+            return False
     
     def calculate_position_weights(self, ranked_df: pd.DataFrame, tickers: list, 
                                    side: str, max_weight=None, min_weight=0.01) -> dict:
@@ -350,6 +390,69 @@ class Portfolio:
             'num_long': len(self.current_holdings['long']),
             'num_short': len(self.current_holdings['short'])
         }
+    
+    def print_trade_list(self, new_portfolio: dict, predictions_df: pd.DataFrame = None):
+        """Print actionable trade list for weekly execution"""
+        print("\n" + "="*80)
+        print("WEEKLY REBALANCING TRADE LIST")
+        print("="*80)
+        
+        # Trades to execute
+        long_to_buy = new_portfolio.get('long_to_buy', [])
+        long_to_sell = new_portfolio.get('long_to_sell', [])
+        short_to_buy = new_portfolio.get('short_to_buy', [])
+        short_to_sell = new_portfolio.get('short_to_sell', [])
+        
+        long_positions = new_portfolio.get('long_positions', {})
+        short_positions = new_portfolio.get('short_positions', {})
+        
+        total_trades = len(long_to_buy) + len(long_to_sell) + len(short_to_buy) + len(short_to_sell)
+        
+        if total_trades == 0:
+            print("\n✓ No trades needed - portfolio unchanged")
+            return
+        
+        print(f"\nTotal Trades: {total_trades}")
+        
+        # SELL orders (execute first)
+        if long_to_sell or short_to_sell:
+            print("\n[1] CLOSE POSITIONS (Execute First):")
+            print("-" * 80)
+            
+            for ticker in long_to_sell:
+                print(f"  CLOSE LONG  | {ticker:6s} | Close entire position")
+            
+            for ticker in short_to_sell:
+                print(f"  COVER SHORT | {ticker:6s} | Cover entire position")
+        
+        # BUY orders (execute second)
+        if long_to_buy or short_to_buy:
+            print("\n[2] OPEN NEW POSITIONS (Execute Second):")
+            print("-" * 80)
+            
+            for ticker in long_to_buy:
+                if ticker in long_positions:
+                    pos = long_positions[ticker]
+                    pred_str = ""
+                    if predictions_df is not None:
+                        pred = predictions_df[predictions_df['ticker'] == ticker]
+                        if not pred.empty:
+                            pred_return = pred.iloc[0]['predicted_return']
+                            pred_str = f" | Predicted: {pred_return:+.2%}"
+                    print(f"  OPEN LONG   | {ticker:6s} | ${pos['dollars']:>12,.0f} ({pos['percent']:5.2f}%){pred_str}")
+            
+            for ticker in short_to_buy:
+                if ticker in short_positions:
+                    pos = short_positions[ticker]
+                    pred_str = ""
+                    if predictions_df is not None:
+                        pred = predictions_df[predictions_df['ticker'] == ticker]
+                        if not pred.empty:
+                            pred_return = pred.iloc[0]['predicted_return']
+                            pred_str = f" | Predicted: {pred_return:+.2%}"
+                    print(f"  OPEN SHORT  | {ticker:6s} | ${pos['dollars']:>12,.0f} ({pos['percent']:5.2f}%){pred_str}")
+        
+        print("\n" + "="*80)
     
     def get_position_history(self) -> pd.DataFrame:
         """

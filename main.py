@@ -9,8 +9,6 @@ from pathlib import Path
 # Data collection
 from src.data.reddit_collector import RedditCollector
 from src.data.news_collector import NewsCollector
-from src.data.earnings_collector import EarningsCollector
-from src.data.sec_collector import SECCollector
 
 # Sentiment analysis
 from src.sentiment.aggregator import SentimentAggregator, analyze_all_data
@@ -30,6 +28,7 @@ from src.evaluation.metrics import evaluate_predictions, print_evaluation_report
 # Utils
 from src.utils.config import config
 from src.utils.data_utils import save_dataframe, load_dataframe
+from src.data.data_manager import DataManager
 
 
 def collect_data(days_back=30):
@@ -66,28 +65,6 @@ def collect_data(days_back=30):
             print(f"✓ Collected {len(news_df)} news articles")
     except Exception as e:
         print(f"✗ News collection failed: {e}")
-    
-    # Earnings
-    print("\n[3/4] Collecting earnings data...")
-    try:
-        earnings_collector = EarningsCollector()
-        earnings_df = earnings_collector.collect_all(save=True)
-        if not earnings_df.empty:
-            all_data.append(earnings_df)
-            print(f"✓ Collected {len(earnings_df)} earnings reports")
-    except Exception as e:
-        print(f"✗ Earnings collection failed: {e}")
-    
-    # SEC filings
-    print("\n[4/4] Collecting SEC filings...")
-    try:
-        sec_collector = SECCollector()
-        sec_df = sec_collector.collect_all(days_back=days_back, save=True)
-        if not sec_df.empty:
-            all_data.append(sec_df)
-            print(f"✓ Collected {len(sec_df)} SEC filings")
-    except Exception as e:
-        print(f"✗ SEC collection failed: {e}")
     
     # Combine all data
     if all_data:
@@ -408,11 +385,162 @@ def train_and_predict(features_df=None):
     return None
 
 
+def weekly_rebalance():
+    """
+    Weekly live rebalancing mode:
+    - Load existing portfolio state
+    - Collect 7 days of new data (rolling 90-day window)
+    - Generate new predictions (no model retraining)
+    - Compare with current holdings
+    - Output trade list
+    """
+    print("\n" + "="*60)
+    print("WEEKLY LIVE REBALANCING")
+    print("="*60)
+    
+    # Initialize data manager with 90-day rolling window
+    dm = DataManager(window_days=90)
+    
+    # Check if weekly update is needed
+    if not dm.needs_update(data_type='sentiment', max_age_days=7):
+        print("\n⚠ Data is less than 7 days old. Skipping collection.")
+        print("  Run with --mode predict to regenerate signals from existing data.")
+        return
+    
+    # Step 1: Incremental data collection (7 days)
+    print("\n[1/5] Incremental Data Collection (7 days)...")
+    start_date, end_date = dm.get_collection_window(data_type='sentiment', default_days=7)
+    
+    if start_date is None:
+        print("✓ Data is current")
+        new_data_collected = False
+    else:
+        days_to_collect = (end_date - start_date).days
+        new_df = collect_data(days_back=days_to_collect)
+        
+        if new_df.empty:
+            print("⚠ No new data collected")
+            new_data_collected = False
+        else:
+            # Append and apply rolling window
+            combined_df = dm.append_and_window(new_df, data_type='sentiment')
+            new_data_collected = True
+    
+    # Step 2: Analyze sentiment (on rolling window data)
+    if new_data_collected:
+        print("\n[2/5] Analyzing Sentiment (90-day window)...")
+        sentiment_df = analyze_sentiment()
+        if sentiment_df is None:
+            print("✗ Sentiment analysis failed")
+            return
+    else:
+        # Load existing sentiment from most recent file
+        sentiment_files = list((config.data_dir / 'processed').glob('sentiment_aggregated_*.parquet'))
+        if sentiment_files:
+            latest_file = max(sentiment_files, key=lambda x: x.stat().st_mtime)
+            sentiment_df = load_dataframe(latest_file)
+            print(f"\n[2/5] Loaded existing sentiment: {len(sentiment_df)} rows from {latest_file.name}")
+        else:
+            print("✗ No sentiment data available")
+            return
+    
+    # Step 3: Create features (on rolling window)
+    print("\n[3/5] Creating Features...")
+    features_df = create_features(sentiment_df)
+    if features_df is None:
+        print("✗ Feature creation failed")
+        return
+    
+    # Step 4: Generate predictions (using existing model, no retraining)
+    print("\n[4/5] Generating Predictions (existing model parameters)...")
+    
+    # Load existing models
+    baseline_path = config.models_dir / 'baseline_model.joblib'
+    xgb_path = config.models_dir / 'xgboost_ranker.json'
+    
+    if not baseline_path.exists() or not xgb_path.exists():
+        print("✗ Models not found. Run --mode full first to train models.")
+        return
+    
+    # Generate predictions without retraining
+    print("Loading existing models...")
+    baseline_model = BaselineModel()
+    baseline_model.load(baseline_path)
+    
+    xgb_model = XGBoostRanker()
+    xgb_model.load(xgb_path)
+    
+    # Get latest date predictions
+    latest_date = features_df['date'].max()
+    latest_features = features_df[features_df['date'] == latest_date].copy()
+    
+    # Generate predictions
+    predictions = xgb_model.predict(latest_features)
+    predictions_df = pd.DataFrame(predictions)
+    
+    print(f"✓ Generated predictions for {len(predictions_df)} stocks")
+    
+    # Step 5: Portfolio rebalancing
+    print("\n[5/5] Portfolio Rebalancing...")
+    
+    # Load existing portfolio state
+    portfolio = Portfolio(long_percentile=80, short_percentile=20)
+    has_existing = portfolio.load_state()
+    
+    if not has_existing:
+        print("\nℹ First-time portfolio creation")
+        print("  This will be your initial portfolio. Run again next week to see rebalancing.")
+    
+    # Construct new portfolio (will compare against loaded state if exists)
+    new_portfolio = portfolio.construct_portfolio(
+        predictions_df, 
+        date=latest_date, 
+        incremental=True,
+        portfolio_value=10_000_000
+    )
+    
+    # Save updated state
+    portfolio.save_state()
+    
+    # Display trade list
+    portfolio.print_trade_list(new_portfolio, predictions_df)
+    
+    # Print current portfolio
+    print("\n" + "="*80)
+    print("UPDATED PORTFOLIO POSITIONS")
+    print("="*80)
+    
+    long_positions = new_portfolio.get('long_positions', {})
+    short_positions = new_portfolio.get('short_positions', {})
+    
+    print(f"\nLONG POSITIONS ({len(long_positions)} stocks):")
+    print("-" * 80)
+    for ticker, details in sorted(long_positions.items(), key=lambda x: x[1]['weight'], reverse=True):
+        ticker_pred = predictions_df[predictions_df['ticker'] == ticker]
+        if not ticker_pred.empty:
+            pred_return = ticker_pred.iloc[0]['predicted_return']
+            print(f"  {ticker:6s} | {details['percent']:5.2f}% | ${details['dollars']:>12,.0f} | Predicted: {pred_return:+.2%}")
+    
+    print(f"\nSHORT POSITIONS ({len(short_positions)} stocks):")
+    print("-" * 80)
+    for ticker, details in sorted(short_positions.items(), key=lambda x: x[1]['weight'], reverse=True):
+        ticker_pred = predictions_df[predictions_df['ticker'] == ticker]
+        if not ticker_pred.empty:
+            pred_return = ticker_pred.iloc[0]['predicted_return']
+            print(f"  {ticker:6s} | {details['percent']:5.2f}% | ${details['dollars']:>12,.0f} | Predicted: {pred_return:+.2%}")
+    
+    print("\n" + "="*80)
+    print("✓ WEEKLY REBALANCING COMPLETE")
+    print("="*80)
+    print(f"\nNext update: {(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')}")
+    print("Run: python main.py --mode live")
+
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description='Mining Stock Sentiment Analysis')
     parser.add_argument('--mode', type=str, default='full',
-                       choices=['collect', 'analyze', 'features', 'predict', 'full'],
+                       choices=['collect', 'analyze', 'features', 'predict', 'full', 'live'],
                        help='Execution mode')
     parser.add_argument('--days', type=int, default=30,
                        help='Days of historical data to collect')
@@ -438,6 +566,10 @@ def main():
         
         elif args.mode == 'predict':
             train_and_predict()
+        
+        elif args.mode == 'live':
+            # Weekly rebalancing mode
+            weekly_rebalance()
         
         elif args.mode == 'full':
             # Run full pipeline

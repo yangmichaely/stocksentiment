@@ -32,9 +32,10 @@ env/
 # Data
 ./data/
 *.csv
-*.json
-*.pkl
 *.parquet
+
+# Preserve portfolio state for weekly rebalancing
+!results/portfolio_state.json
 
 # Models
 ./models/

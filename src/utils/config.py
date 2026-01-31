@@ -27,7 +27,6 @@ class Config:
         self.news_api_key = os.getenv('NEWS_API_KEY')
         self.alpha_vantage_key = os.getenv('ALPHA_VANTAGE_API_KEY')
         self.finnhub_api_key = os.getenv('FINNHUB_API_KEY')
-        self.polygon_api_key = os.getenv('POLYGON_API_KEY')
         
         # Paths
         self.data_dir = self.project_root / self.config['output']['paths']['data']
