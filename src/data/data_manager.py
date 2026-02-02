@@ -17,7 +17,7 @@ class DataManager:
         Initialize data manager
         
         Args:
-            window_days: Size of rolling window (default 90 days)
+            window_days: Size of rolling window (default 180 days)
         """
         self.window_days = window_days
         self.data_dir = config.data_dir / 'processed'
