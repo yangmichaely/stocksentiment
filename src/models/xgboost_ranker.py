@@ -167,7 +167,7 @@ class XGBoostRanker:
         
         return self.model.predict(X_scaled)
     
-    def train_on_period(self, df: pd.DataFrame, train_end_date, target_col='forward_return_5d', min_train_periods=20):
+    def train_on_period(self, df: pd.DataFrame, train_end_date, target_col='forward_return_5d', min_train_periods=20, window_days=None):
         """
         Train model on data up to (but not including) train_end_date
         Used for walk-forward analysis
@@ -177,12 +177,21 @@ class XGBoostRanker:
             train_end_date: Train on all data before this date
             target_col: Target column
             min_train_periods: Minimum number of training samples required
+            window_days: If specified, use rolling window of last N days (e.g., 180)
+                        If None, use expanding window (all historical data)
         
         Returns:
             Training metrics or None if insufficient data
         """
         # Filter training data (only past)
-        train_df = df[df['date'] < train_end_date].copy()
+        if window_days is not None:
+            # Rolling window: only use last window_days before train_end_date
+            train_start_date = train_end_date - pd.Timedelta(days=window_days)
+            train_df = df[(df['date'] >= train_start_date) & (df['date'] < train_end_date)].copy()
+        else:
+            # Expanding window: use all data before train_end_date
+            train_df = df[df['date'] < train_end_date].copy()
+        
         train_df = train_df[train_df[target_col].notna()]
         
         if len(train_df) < min_train_periods:

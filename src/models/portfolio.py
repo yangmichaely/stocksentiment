@@ -77,7 +77,12 @@ class Portfolio:
     def calculate_position_weights(self, ranked_df: pd.DataFrame, tickers: list, 
                                    side: str, max_weight=None, min_weight=0.01) -> dict:
         """
-        Calculate position weights based on signal strength with exponential decay
+        Calculate position weights based on signal strength (predicted return magnitude)
+        
+        Combines signal strength with rank decay:
+        - Higher predicted returns get proportionally more weight
+        - Exponential decay by rank prevents over-concentration
+        - Result: High-conviction positions dominate, low-conviction get minimal weight
         
         Args:
             ranked_df: DataFrame with predictions
@@ -95,17 +100,17 @@ class Portfolio:
         # Get predicted returns for these tickers
         ticker_df = ranked_df[ranked_df['ticker'].isin(tickers)].copy()
         
-        # Use absolute value of predicted return as signal strength
-        ticker_df['signal_strength'] = ticker_df['predicted_return'].abs()
+        # Use predicted return as signal strength (absolute value for shorts)
+        if side == 'long':
+            ticker_df['signal_strength'] = ticker_df['predicted_return']
+        else:
+            ticker_df['signal_strength'] = ticker_df['predicted_return'].abs()
         
-        # Rank-based weighting: higher rank = higher weight
-        # Use exponential decay to concentrate in top positions
+        # Sort by signal strength
         ticker_df = ticker_df.sort_values('signal_strength', ascending=False)
         n = len(ticker_df)
         
         # Auto-calculate max_weight based on number of positions if not specified
-        # With exponential decay, top position typically gets ~20% in small portfolios
-        # For larger portfolios (20+ stocks), cap at 10%
         if max_weight is None:
             if n <= 5:
                 max_weight = 0.30  # Up to 30% for concentrated portfolios
@@ -116,17 +121,29 @@ class Portfolio:
             else:
                 max_weight = 0.10  # Cap at 10% for very diversified portfolios
         
-        # Exponential weights: top position gets most, decays exponentially
-        # decay_factor controls concentration (0.5 = moderate, 0.3 = aggressive)
-        decay_factor = 0.4
-        ranks = np.arange(1, n + 1)
-        raw_weights = np.exp(-decay_factor * (ranks - 1) / n)
+        # HYBRID WEIGHTING: Signal strength × Exponential decay
+        # This ensures both magnitude and rank matter
         
-        # Normalize to sum to 1
-        raw_weights = raw_weights / raw_weights.sum()
+        # Component 1: Signal strength (normalized)
+        signal_weights = ticker_df['signal_strength'].values
+        signal_weights = signal_weights / signal_weights.sum()  # Normalize to sum=1
+        
+        # Component 2: Exponential rank decay
+        decay_factor = 0.4  # Controls how fast weights decay (0.3=aggressive, 0.5=moderate)
+        ranks = np.arange(1, n + 1)
+        rank_weights = np.exp(-decay_factor * (ranks - 1) / n)
+        rank_weights = rank_weights / rank_weights.sum()  # Normalize to sum=1
+        
+        # Combine: 70% signal strength, 30% rank decay
+        # High signal stocks get boosted, but extreme concentration is limited
+        alpha = 0.7  # Signal strength importance (0.7 = prefer signal, 0.3 = prefer rank)
+        combined_weights = alpha * signal_weights + (1 - alpha) * rank_weights
+        
+        # Normalize
+        combined_weights = combined_weights / combined_weights.sum()
         
         # Apply min/max constraints
-        weights = np.clip(raw_weights, min_weight, max_weight)
+        weights = np.clip(combined_weights, min_weight, max_weight)
         
         # Renormalize after clipping
         weights = weights / weights.sum()
@@ -297,12 +314,12 @@ class Portfolio:
         return portfolio
     
     def backtest_walk_forward(self, features_df: pd.DataFrame, model, returns_col='forward_return_5d', 
-                             target_col='forward_return_5d', incremental=True, min_train_periods=30) -> pd.DataFrame:
+                             target_col='forward_return_5d', incremental=True, min_train_periods=30, window_days=180) -> pd.DataFrame:
         """
-        Walk-forward backtest: train model on expanding window, predict out-of-sample only
+        Walk-forward backtest: train model on rolling window, predict out-of-sample only
         
         This eliminates look-ahead bias by ensuring predictions are always out-of-sample:
-        - For each period, train on ALL data BEFORE that period
+        - For each period, train on last 180 days BEFORE that period (rolling window)
         - Predict ONLY on that period (never seen by model)
         - Construct portfolio and measure performance
         
@@ -315,6 +332,7 @@ class Portfolio:
             target_col: Column to train model on
             incremental: If True, track turnover from incremental changes
             min_train_periods: Minimum training periods before starting backtest
+            window_days: Rolling window size in days (default 180)
         
         Returns:
             DataFrame with backtest results
@@ -323,7 +341,8 @@ class Portfolio:
         print("WALK-FORWARD BACKTEST (Out-of-Sample Only)")
         print("="*80)
         print("Each prediction is made on data the model has NEVER seen during training.")
-        print("This prevents look-ahead bias and overfitting.\n")
+        print("This prevents look-ahead bias and overfitting.")
+        print(f"Training window: Rolling {window_days}-day window\n")
         
         if 'date' not in features_df.columns:
             print("Warning: No date column found")
@@ -344,13 +363,13 @@ class Portfolio:
         all_predictions = []
         
         print(f"Total periods: {len(dates)}")
-        print(f"Training window: expanding (starts with {min_train_periods} periods)")
+        print(f"Training window: Rolling {window_days} days")
         print(f"Out-of-sample periods: {len(dates) - min_train_periods}\n")
         
         # Walk forward through time
         for i, current_date in enumerate(dates[min_train_periods:], start=min_train_periods):
-            # Train on all data BEFORE current_date
-            train_metrics = model.train_on_period(features_df, current_date, target_col, min_train_periods)
+            # Train on rolling window (last window_days) BEFORE current_date
+            train_metrics = model.train_on_period(features_df, current_date, target_col, min_train_periods, window_days=window_days)
             
             if train_metrics is None:
                 print(f"  Period {i+1}/{len(dates)}: Skipping {current_date} (insufficient training data)")

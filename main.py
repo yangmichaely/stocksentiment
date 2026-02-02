@@ -3,8 +3,15 @@ Main pipeline for mining stock sentiment analysis
 """
 import argparse
 import pandas as pd
+import numpy as np
+import random
 from datetime import datetime, timedelta
 from pathlib import Path
+
+# Set random seeds for reproducibility
+RANDOM_SEED = 42
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)
 
 # Data collection
 from src.data.reddit_collector import RedditCollector
@@ -479,7 +486,7 @@ def weekly_rebalance(portfolio_size=10_000_000):
     
     # Load existing models
     baseline_path = config.models_dir / 'baseline_model.joblib'
-    xgb_path = config.models_dir / 'xgboost_ranker.json'
+    xgb_path = config.models_dir / 'xgboost_model.joblib'
     
     if not baseline_path.exists() or not xgb_path.exists():
         print("✗ Models not found. Run --mode full first to train models.")
