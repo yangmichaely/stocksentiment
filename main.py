@@ -412,7 +412,7 @@ def train_and_predict(features_df=None, portfolio_size=10_000_000):
     return None
 
 
-def weekly_rebalance(portfolio_size=10_000_000, window_days=90):
+def weekly_rebalance(portfolio_size=10_000_000, window_days=180):
     """
     Weekly live rebalancing mode:
     - Load existing portfolio state
