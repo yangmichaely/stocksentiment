@@ -6,7 +6,7 @@ A sentiment analysis-based stock picker for the mining and materials sector usin
 
 ```bash
 # Clone and setup
-git clone <repo>
+git clone https://github.com/yangmichaely/stocksentiment
 cd stocksentiment
 
 # Create virtual environment
@@ -21,20 +21,27 @@ cp .env.example .env
 # Edit .env with your API keys
 ```
 
-### Get API Keys
-
 ### Basic Usage
 
 ```bash
-# Collect data
-python main.py --mode collect --days 30
+# Full pipeline (initial portfolio creation)
+python main.py --mode full --days 180 --portfolio 10000000   #10M portfolio
 
-# Run sentiment analysis
-python main.py --mode analyze
+# Individual steps
+python main.py --mode collect --days 180     # Collect data only
+python main.py --mode analyze                # Run sentiment analysis
+python main.py --mode features               # Create features
+python main.py --mode predict                # Train models and generate predictions
 
-# Generate predictions
-python main.py --mode predict
+# Weekly rebalancing (for live trading after portfolio creation)
+python main.py --mode live --days 180 --portfolio 10000000
 
-# Full pipeline
-python main.py --mode full
+# Custom portfolio size examples
+python main.py --mode full --days 90 --portfolio 50000      # $50K portfolio with 90 day lookback history
+python main.py --mode full --days 180 --portfolio 1000000   # $1M portfolio with 180 day lookback history
 ```
+
+**Parameters:**
+- `--mode`: Execution mode (collect, analyze, features, predict, full, live)
+- `--days`: Historical data window in days (default: 180)
+- `--portfolio`: Portfolio size in dollars (default: 10000000)
