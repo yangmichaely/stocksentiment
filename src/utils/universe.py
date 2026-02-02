@@ -183,8 +183,12 @@ def _parse_tickers():
     
     # Group by ticker to avoid duplicates across ETFs
     # Use custom aggregation to prefer non-NaN names
+    def get_first_non_nan(x):
+        d = x.dropna()
+        return d.iloc[0] if not d.empty else None
+    
     unique_holdings = holdings_df.groupby('Ticker').agg({
-        'Name': lambda x: (d := x.dropna()).iloc[0] if not d.empty else None,
+        'Name': get_first_non_nan,
         'etf': 'first'  # Just take first ETF for reference
     }).reset_index()
     
