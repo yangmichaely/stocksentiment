@@ -156,7 +156,9 @@ def _find_us_ticker(company_name, ticker_hint, screener_df):
         return foreign_ord.iloc[0]['Symbol']
     
     # Fallback to first match
-    return matches.iloc[0]['Symbol']
+    if not matches.empty:
+        return matches.iloc[0]['Symbol']
+    return None
 
 def _parse_tickers():
     """
@@ -182,7 +184,7 @@ def _parse_tickers():
     # Group by ticker to avoid duplicates across ETFs
     # Use custom aggregation to prefer non-NaN names
     unique_holdings = holdings_df.groupby('Ticker').agg({
-        'Name': lambda x: x.dropna().iloc[0] if not x.dropna().empty else None,
+        'Name': lambda x: (d := x.dropna()).iloc[0] if not d.empty else None,
         'etf': 'first'  # Just take first ETF for reference
     }).reset_index()
     

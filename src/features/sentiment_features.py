@@ -93,7 +93,7 @@ class SentimentFeatureEngineer:
         for window in self.time_windows:
             # Percentage change
             df[f'sentiment_pct_change_{window}d'] = (
-                df.groupby('ticker')[sentiment_col].pct_change(periods=window)
+                df.groupby('ticker')[sentiment_col].pct_change(periods=window).replace([np.inf, -np.inf], np.nan)
             )
             
             # Absolute change

@@ -88,12 +88,12 @@ class TechnicalFeatureEngineer:
         for period in periods:
             # Forward return (what we want to predict)
             df[f'forward_return_{period}d'] = (
-                df.groupby('ticker')['Close'].shift(-period) / df['Close'] - 1
+                df.groupby('ticker')['Close'].shift(-period) / df['Close'].replace(0, np.nan) - 1
             )
             
             # Historical return (for momentum features)
             df[f'historical_return_{period}d'] = (
-                df['Close'] / df.groupby('ticker')['Close'].shift(period) - 1
+                df['Close'] / df.groupby('ticker')['Close'].shift(period).replace(0, np.nan) - 1
             )
         
         return df
@@ -117,7 +117,7 @@ class TechnicalFeatureEngineer:
         df = df.sort_values(['ticker', 'date'])
         
         # Daily returns
-        df['daily_return'] = df.groupby('ticker')['Close'].pct_change()
+        df['daily_return'] = df.groupby('ticker')['Close'].pct_change().replace([np.inf, -np.inf], np.nan)
         
         for window in windows:
             # Rolling volatility (std of returns)

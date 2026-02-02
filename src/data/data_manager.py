@@ -117,7 +117,6 @@ class DataManager:
                 print(f"✓ Rolling window: Dropped {before_count - after_count} old rows (keeping last {self.window_days} days)")
         
         # Save updated data with dated filename
-        from datetime import datetime
         file_names = {
             'sentiment': f'sentiment_aggregated_{datetime.now().strftime("%Y%m%d")}.parquet',
             'features': f'features_{datetime.now().strftime("%Y%m%d")}.parquet',

@@ -86,8 +86,8 @@ class NewsCollector:
                     timestamp_str = article.get('seendate', '')
                     try:
                         timestamp = pd.to_datetime(timestamp_str, format='%Y%m%dT%H%M%SZ', utc=True).tz_localize(None)
-                    except:
-                        timestamp = datetime.utcnow()
+                    except Exception:
+                        timestamp = datetime.now().replace(tzinfo=None)
                     
                     all_articles.append({
                         'ticker': ticker,
