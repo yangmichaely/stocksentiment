@@ -412,24 +412,25 @@ def train_and_predict(features_df=None, portfolio_size=10_000_000):
     return None
 
 
-def weekly_rebalance(portfolio_size=10_000_000):
+def weekly_rebalance(portfolio_size=10_000_000, window_days=90):
     """
     Weekly live rebalancing mode:
     - Load existing portfolio state
-    - Collect 7 days of new data (rolling 90-day window)
+    - Collect 7 days of new data (rolling window)
     - Generate new predictions (no model retraining)
     - Compare with current holdings
     - Output trade list
     
     Args:
         portfolio_size: Total portfolio value in dollars
+        window_days: Size of rolling data window in days
     """
     print("\n" + "="*60)
     print("WEEKLY LIVE REBALANCING")
     print("="*60)
     
-    # Initialize data manager with 90-day rolling window
-    dm = DataManager(window_days=90)
+    # Initialize data manager with configurable rolling window
+    dm = DataManager(window_days=window_days)
     
     # Check if weekly update is needed
     if not dm.needs_update(data_type='sentiment', max_age_days=7):
@@ -458,7 +459,7 @@ def weekly_rebalance(portfolio_size=10_000_000):
     
     # Step 2: Analyze sentiment (on rolling window data)
     if new_data_collected:
-        print("\n[2/5] Analyzing Sentiment (90-day window)...")
+        print(f"\n[2/5] Analyzing Sentiment ({window_days}-day window)...")
         sentiment_df = analyze_sentiment()
         if sentiment_df is None:
             print("✗ Sentiment analysis failed")
@@ -604,7 +605,7 @@ def main():
         
         elif args.mode == 'live':
             # Weekly rebalancing mode
-            weekly_rebalance(portfolio_size=portfolio_size)
+            weekly_rebalance(portfolio_size=portfolio_size, window_days=args.days)
         
         elif args.mode == 'full':
             # Run full pipeline
