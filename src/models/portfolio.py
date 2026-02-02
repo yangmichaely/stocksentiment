@@ -11,7 +11,7 @@ from ..utils.config import config
 class Portfolio:
     """Long-only portfolio based on sentiment rankings with absolute thresholds"""
     
-    def __init__(self, sentiment_threshold=0.25, max_positions=15, long_only=True):
+    def __init__(self, sentiment_threshold=0.25, max_positions=15, long_only=True, portfolio_value=10_000_000):
         """
         Initialize portfolio
         
@@ -19,10 +19,12 @@ class Portfolio:
             sentiment_threshold: Minimum absolute sentiment score to consider (default 0.25)
             max_positions: Maximum number of positions to hold (default 15)
             long_only: If True, only long positions; if False, market-neutral long-short (default True)
+            portfolio_value: Total portfolio size in dollars (default $10M)
         """
         self.sentiment_threshold = sentiment_threshold
         self.max_positions = max_positions
         self.long_only = long_only
+        self.portfolio_value = portfolio_value
         
         # Legacy parameters for backwards compatibility
         self.long_percentile = 80
@@ -134,8 +136,7 @@ class Portfolio:
         
         return weight_dict
     
-    def construct_portfolio(self, ranked_df: pd.DataFrame, date=None, incremental=True, 
-                           portfolio_value=10_000_000) -> dict:
+    def construct_portfolio(self, ranked_df: pd.DataFrame, date=None, incremental=True) -> dict:
         """
         Construct long-only portfolio with absolute sentiment threshold and top-K selection
         
@@ -149,11 +150,11 @@ class Portfolio:
             ranked_df: DataFrame with predictions, sentiment_score, and ranks
             date: Optional date for this portfolio snapshot
             incremental: If True, only adjust positions that change significantly
-            portfolio_value: Total portfolio value in dollars (default $10M)
         
         Returns:
             Dict with long positions, weights, dollar amounts, and cash position
         """
+        portfolio_value = self.portfolio_value
         # Use predicted_return as the signal (XGBoost model output)
         # Convert threshold from sentiment scale to predicted_return scale
         # Since predicted_return is typically in range -0.1 to 0.1, use a lower threshold
@@ -304,6 +305,8 @@ class Portfolio:
         - For each period, train on ALL data BEFORE that period
         - Predict ONLY on that period (never seen by model)
         - Construct portfolio and measure performance
+        
+        Portfolio size: ${self.portfolio_value:,.0f}
         
         Args:
             features_df: DataFrame with features and forward returns (NOT predictions)

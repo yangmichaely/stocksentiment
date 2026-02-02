@@ -171,7 +171,7 @@ def create_features(sentiment_df=None):
     return combined_df
 
 
-def train_and_predict(features_df=None):
+def train_and_predict(features_df=None, portfolio_size=10_000_000):
     """
     Train models and make predictions
     
@@ -240,7 +240,7 @@ def train_and_predict(features_df=None):
         wf_model = XGBoostRanker()
         
         # Long-only strategy with absolute threshold and top-15 selection
-        portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True)
+        portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True, portfolio_value=portfolio_size)
         
         # Run walk-forward backtest on raw features (not pre-made predictions)
         backtest_df = portfolio.backtest_walk_forward(
@@ -405,7 +405,7 @@ def train_and_predict(features_df=None):
     return None
 
 
-def weekly_rebalance():
+def weekly_rebalance(portfolio_size=10_000_000):
     """
     Weekly live rebalancing mode:
     - Load existing portfolio state
@@ -413,6 +413,9 @@ def weekly_rebalance():
     - Generate new predictions (no model retraining)
     - Compare with current holdings
     - Output trade list
+    
+    Args:
+        portfolio_size: Total portfolio value in dollars
     """
     print("\n" + "="*60)
     print("WEEKLY LIVE REBALANCING")
@@ -505,7 +508,7 @@ def weekly_rebalance():
     
     # Load existing portfolio state
     # Long-only strategy with absolute threshold and top-15 selection
-    portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True)
+    portfolio = Portfolio(sentiment_threshold=0.25, max_positions=15, long_only=True, portfolio_value=portfolio_size)
     has_existing = portfolio.load_state()
     
     if not has_existing:
@@ -516,8 +519,7 @@ def weekly_rebalance():
     new_portfolio = portfolio.construct_portfolio(
         predictions_df, 
         date=latest_date, 
-        incremental=True,
-        portfolio_value=10_000_000
+        incremental=True
     )
     
     # Save updated state
@@ -565,13 +567,18 @@ def main():
                        help='Execution mode')
     parser.add_argument('--days', type=int, default=30,
                        help='Days of historical data to collect')
+    parser.add_argument('--portfolio', type=float, default=10_000_000,
+                       help='Portfolio size in dollars (default: 10000000 = $10M)')
     
     args = parser.parse_args()
+    
+    portfolio_size = args.portfolio  # Keep as float for cent-level precision
     
     print("\n" + "="*60)
     print("MINING & MATERIALS SENTIMENT STOCK PICKER")
     print("="*60)
     print(f"Mode: {args.mode}")
+    print(f"Portfolio Size: ${portfolio_size:,.2f}")
     print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
     
@@ -586,11 +593,11 @@ def main():
             create_features()
         
         elif args.mode == 'predict':
-            train_and_predict()
+            train_and_predict(portfolio_size=portfolio_size)
         
         elif args.mode == 'live':
             # Weekly rebalancing mode
-            weekly_rebalance()
+            weekly_rebalance(portfolio_size=portfolio_size)
         
         elif args.mode == 'full':
             # Run full pipeline
@@ -600,7 +607,7 @@ def main():
                 if sentiment_df is not None:
                     features_df = create_features(sentiment_df)
                     if features_df is not None:
-                        train_and_predict(features_df)
+                        train_and_predict(features_df, portfolio_size=portfolio_size)
         
         print("\n" + "="*60)
         print("✓ PIPELINE COMPLETE")
