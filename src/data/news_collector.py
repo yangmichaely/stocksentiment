@@ -50,20 +50,20 @@ class NewsCollector:
             params = {
                 'query': term,
                 'mode': 'artlist',
-                'maxrecords': 100,  # Reduced from 250 to be more conservative
+                'maxrecords': 250,  # GDELT API maximum
                 'format': 'json',
                 'startdatetime': start_date.strftime('%Y%m%d%H%M%S'),
                 'enddatetime': end_date.strftime('%Y%m%d%H%M%S')
             }
             
             try:
-                response = requests.get(base_url, params=params, timeout=30)
+                response = requests.get(base_url, params=params, timeout=60)
                 
                 # Handle rate limiting
                 if response.status_code == 429:
                     print(f"  GDELT rate limited, waiting 120s...")
                     time.sleep(120)
-                    response = requests.get(base_url, params=params, timeout=30)
+                    response = requests.get(base_url, params=params, timeout=60)
                 
                 response.raise_for_status()
                 
