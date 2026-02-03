@@ -1,15 +1,26 @@
 """
 Stock universe for mining & materials sector
 Dynamically built from ETF holdings: SILJ, COPX, GDX, GDXJ, XLB, XME, PICK, REMX, SLX
-Maps foreign tickers to US-traded equivalents using OTCMKT screener
+Maps foreign tickers to US-traded equivalents using Polygon API and OTCMKT screener
 """
 
 import os
 import pandas as pd
 import logging
+import requests
+import time
 from pathlib import Path
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Polygon API configuration
+POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
+POLYGON_BASE_URL = "https://api.polygon.io"
 
 def _load_stock_screener():
     """Load the OTCMKT stock screener CSV"""
@@ -44,13 +55,17 @@ def _load_etf_holdings():
         # Normalize column names (different CSVs use different formats)
         df.columns = df.columns.str.strip().str.lower()
         
-        # Map different column name variations
+        # Map different column name variations for ticker
         if 'ticker' in df.columns:
             df['Ticker'] = df['ticker']
         elif 'symbol' in df.columns:
             df['Ticker'] = df['symbol']
         
-        if 'name' in df.columns:
+        # Map different column name variations for company name
+        # Priority order: holding name > name > security name
+        if 'holding name' in df.columns:
+            df['Name'] = df['holding name']
+        elif 'name' in df.columns:
             df['Name'] = df['name']
         elif 'security name' in df.columns:
             df['Name'] = df['security name']
@@ -65,52 +80,184 @@ def _load_etf_holdings():
     combined = pd.concat(all_holdings, ignore_index=True)
     return combined
 
-def _is_us_ticker(ticker, screener_df=None):
-    """
-    Determine if a ticker is already US-listed (NYSE/NASDAQ)
-    
-    Logic:
-    - Has " US" suffix → US exchange ticker (keep directly)
-    - Has any other country suffix including " CN" (Canadian) → foreign exchange ticker (look up in OTC)
-    - No suffix → assume US exchange listing (NYSE/NASDAQ) like BHP, RIO, VALE, FCX
-    """
-    if not ticker or pd.isna(ticker):
-        return False
-    
-    ticker = str(ticker).strip()
-    
-    # If it has a space, it has a country/exchange code
-    if ' ' in ticker:
-        parts = ticker.split()
-        if len(parts) >= 2:
-            country_code = parts[-1]
-            # Only " US" suffix means US exchange
-            if country_code == 'US':
-                return True
-            # Everything else is foreign exchange listing (including Canadian " CN")
-            return False
-    
-    # No suffix - skip numeric or single-char tickers
-    if ticker.isdigit() or len(ticker) <= 1:
-        return False
-    
-    # No suffix = assume US exchange listing (NYSE/NASDAQ/AMEX)
-    # Examples: BHP, RIO, VALE (NYSE ADRs), FCX, NUE (US companies)
-    return True
-
-
 def _extract_company_name(name):
     """Clean company name for matching"""
     if pd.isna(name):
         return ""
     
-    name = str(name).upper()
-    # Remove common suffixes
-    for suffix in [' LTD', ' LIMITED', ' CORP', ' CORPORATION', ' INC', ' PLC', 
-                   ' SA', ' AB', ' NV', ' AG', ' SE', ' CO', ' GROUP']:
-        name = name.replace(suffix, '')
+    name = str(name).upper().strip()
     
-    return name.strip()
+    # Remove common suffixes only at the end of the string
+    # Use word boundaries to avoid removing parts of words
+    suffixes = [
+        ' LIMITED', ' LTD', ' LTD.', 
+        ' CORPORATION', ' CORP', ' CORP.',
+        ' INCORPORATED', ' INC', ' INC.',
+        ' COMPANY', ' CO', ' CO.',
+        ' PUBLIC LIMITED COMPANY', ' PLC', ' PLC.',
+        ' SOCIEDAD ANONIMA', ' SA', ' S.A.',
+        ' AKTIEBOLAG', ' AB',
+        ' NAAMLOZE VENNOOTSCHAP', ' NV', ' N.V.',
+        ' AKTIENGESELLSCHAFT', ' AG',
+        ' SOCIETAS EUROPAEA', ' SE', ' S.E.',
+        ' LIMITED LIABILITY COMPANY', ' LLC', ' L.L.C.',
+        ' LIMITED PARTNERSHIP', ' LP', ' L.P.',
+        ' LIMITED LIABILITY PARTNERSHIP', ' LLP', ' L.L.P.',
+        ' GROUP', ' THE'
+    ]
+    
+    # Sort by length (longest first) to avoid partial matches
+    suffixes.sort(key=len, reverse=True)
+    
+    for suffix in suffixes:
+        if name.endswith(suffix):
+            name = name[:-len(suffix)].strip()
+            break  # Only remove one suffix
+    
+    return name
+
+def _lookup_polygon_ticker(company_name, original_ticker):
+    """
+    Look up US ticker for a company using Polygon API
+    
+    Args:
+        company_name: Company name from ETF holdings
+        original_ticker: Original ticker from holdings (for logging)
+    
+    Returns:
+        US ticker symbol or None
+    """
+    if not POLYGON_API_KEY:
+        logger.debug("Polygon API key not configured")
+        return None
+    
+    if not company_name or pd.isna(company_name):
+        return None
+    
+    original_name = str(company_name).upper().strip()[:50]
+    clean_name = _extract_company_name(company_name)[:50]
+    
+    # Try both original and cleaned names - prioritize original
+    search_queries = []
+    if original_name:
+        search_queries.append(('original', original_name))
+    if clean_name and clean_name != original_name:
+        search_queries.append(('cleaned', clean_name))
+    
+    for query_type, search_name in search_queries:
+        # Polygon search endpoint
+        url = f"{POLYGON_BASE_URL}/v3/reference/tickers"
+        params = {
+            'search': search_name,
+            'active': 'true',
+            'limit': 10,
+            'apiKey': POLYGON_API_KEY
+        }
+        
+        print(f"\n📤 Polygon API Request for {original_ticker} ({query_type} name):")
+        print(f"   Company Name: {company_name}")
+        print(f"   Search Query: {search_name}")
+        print(f"   URL: {url}")
+        
+        max_retries = 10000
+        retry_count = 0
+        response = None
+        
+        while retry_count < max_retries:
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                
+                print(f"📥 Polygon API Response:")
+                print(f"   Status Code: {response.status_code}")
+                
+                # Handle rate limiting - pause and retry
+                if response.status_code == 429:
+                    retry_count += 1
+                    print(f"   ⚠️  Rate limit hit, pausing 13 seconds and retrying... (attempt {retry_count}/{max_retries})")
+                    logger.warning(f"Polygon API rate limit hit for {search_name}, retry {retry_count}")
+                    time.sleep(13)  # Wait slightly longer than minimum
+                    continue  # Retry the loop
+                
+                if response.status_code != 200:
+                    print(f"   ❌ Error response")
+                    logger.debug(f"Polygon API error {response.status_code} for {search_name}")
+                    break  # Try next search query
+                
+                # Success - break out of retry loop
+                break
+                
+            except requests.exceptions.RequestException as e:
+                print(f"   ❌ Request Exception: {e}")
+                logger.debug(f"Polygon API request failed for {search_name}: {e}")
+                break  # Try next search query
+            except Exception as e:
+                print(f"   ❌ Error: {e}")
+                logger.debug(f"Polygon API error for {search_name}: {e}")
+                break  # Try next search query
+        
+        if retry_count >= max_retries or response is None or response.status_code != 200:
+            if retry_count >= max_retries:
+                print(f"   ❌ Max retries exceeded")
+            continue  # Try next search query
+        
+        try:
+            data = response.json()
+            results = data.get('results', [])
+            
+            print(f"   Results Count: {len(results)}")
+            
+            if results:
+                print(f"   Top Results:")
+                for i, result in enumerate(results[:5], 1):
+                    ticker = result.get('ticker', 'N/A')
+                    name = result.get('name', 'N/A')
+                    locale = result.get('locale', 'N/A')
+                    market = result.get('market', 'N/A')
+                    exchange = result.get('primary_exchange', 'N/A')
+                    print(f"      {i}. {ticker:8s} | {name[:40]:40s} | {locale:4s} | {market:8s} | {exchange}")
+            
+            if not results:
+                print(f"   ℹ️  No results found")
+                continue  # Try next search query
+            
+            # Find best match: prioritize exact name matches on US exchanges
+            for result in results:
+                result_name = result.get('name', '').upper()
+                ticker = result.get('ticker', '')
+                market = result.get('market', '')
+                locale = result.get('locale', '')
+                
+                # Only accept US locale with stocks or otc market
+                if locale != 'us' or market not in ['stocks', 'otc']:
+                    continue
+                
+                # Check for exact or very close match
+                if search_name.upper() in result_name or result_name in search_name.upper():
+                    print(f"   ✅ Match Found: {ticker} ({result_name}) [{market.upper()}] [using {query_type} name]")
+                    logger.debug(f"Polygon: {original_ticker} ({company_name}) -> {ticker} ({result_name})")
+                    return ticker
+            
+            # If no exact match, return first US stocks/otc result as fallback
+            for result in results:
+                locale = result.get('locale', '')
+                market = result.get('market', '')
+                if locale == 'us' and market in ['stocks', 'otc']:
+                    ticker = result.get('ticker', '')
+                    result_name = result.get('name', '')
+                    print(f"   ⚠️  Fallback Match: {ticker} ({result_name}) [{market.upper()}] [using {query_type} name]")
+                    logger.debug(f"Polygon (fallback): {original_ticker} ({company_name}) -> {ticker}")
+                    return ticker
+            
+            print(f"   ❌ No US stocks/OTC found in results")
+            # Continue to next search query if this one didn't match
+            
+        except Exception as e:
+            print(f"   ❌ Error parsing response: {e}")
+            logger.debug(f"Polygon API error for {search_name}: {e}")
+            continue
+    
+    # No matches found with either query
+    return None
 
 def _find_us_ticker(company_name, ticker_hint, screener_df):
     """
@@ -127,19 +274,31 @@ def _find_us_ticker(company_name, ticker_hint, screener_df):
     if screener_df.empty:
         return None
     
-    clean_name = _extract_company_name(company_name)
-    if not clean_name:
+    if not company_name or pd.isna(company_name):
         return None
     
+    original_name = str(company_name).upper().strip()
+    clean_name = _extract_company_name(company_name)
+    
     # Search for matching company in screener
-    # Look for ADRs first, then Foreign Ordinary Shares
-    screener_df['clean_name'] = screener_df['Security Name'].apply(_extract_company_name)
+    # Try ORIGINAL name first, then cleaned name
     
-    # Exact match
-    matches = screener_df[screener_df['clean_name'] == clean_name]
+    # Attempt 1: Exact match with original name
+    matches = screener_df[screener_df['Security Name'].str.upper().str.strip() == original_name]
     
-    # If no exact match, try partial match (contains)
+    # Attempt 2: Partial match with original name
     if matches.empty:
+        matches = screener_df[screener_df['Security Name'].str.upper().str.contains(original_name, na=False, regex=False)]
+    
+    # Attempt 3: Exact match with cleaned name (if different from original)
+    if matches.empty and clean_name and clean_name != original_name:
+        screener_df['clean_name'] = screener_df['Security Name'].apply(_extract_company_name)
+        matches = screener_df[screener_df['clean_name'] == clean_name]
+    
+    # Attempt 4: Partial match with cleaned name
+    if matches.empty and clean_name:
+        if 'clean_name' not in screener_df.columns:
+            screener_df['clean_name'] = screener_df['Security Name'].apply(_extract_company_name)
         matches = screener_df[screener_df['clean_name'].str.contains(clean_name, na=False, regex=False)]
     
     if matches.empty:
@@ -167,9 +326,9 @@ def _parse_tickers():
     Process:
     1. Load all ETF holdings
     2. For each ticker:
-       - If US-based: include directly
-       - If foreign: look up company name in OTCMKT screener for US ticker
-       - Skip if no US version found
+       - Look up company name via Polygon API to find US ticker
+       - If not found, look up in Stock_Screener.csv
+       - If still not found, discard
     """
     logger.info("Loading ETF holdings and stock screener...")
     
@@ -177,9 +336,11 @@ def _parse_tickers():
     screener_df = _load_stock_screener()
     
     us_tickers = set()
-    foreign_mapped = 0
-    us_direct = 0
+    polygon_mapped = 0
+    screener_mapped = 0
     discarded = 0
+    api_calls = 0
+    processed = 0
     
     # Group by ticker to avoid duplicates across ETFs
     # Use custom aggregation to prefer non-NaN names
@@ -193,57 +354,83 @@ def _parse_tickers():
     }).reset_index()
     
     logger.info(f"Processing {len(unique_holdings)} unique tickers from {len(holdings_df)} total holdings")
+    logger.info("Using Polygon API for company name lookups (may take a few minutes)...")
     
-    for _, row in unique_holdings.iterrows():
+    for idx, row in unique_holdings.iterrows():
+        processed += 1
         ticker = row['Ticker']
         name = row.get('Name', '')
         
-        # Check if it's a US ticker (pass screener for better detection)
-        if _is_us_ticker(ticker, screener_df):
-            # Clean up ticker (remove slashes, etc.)
-            clean_ticker = str(ticker).split()[0]  # Take first part before any space
-            clean_ticker = clean_ticker.replace('/', '.').replace('*', '')
+        # Convert ticker to string for display purposes
+        ticker = str(ticker).strip() if not pd.isna(ticker) else 'N/A'
+        
+        # Step 1: Look up via Polygon API by company name
+        us_ticker = None
+        if name and not pd.isna(name):
+            us_ticker = _lookup_polygon_ticker(name, ticker)
+            api_calls += 1
             
-            # Skip purely numeric tickers or single characters
-            if clean_ticker and len(clean_ticker) > 1 and not clean_ticker.isdigit():
-                us_tickers.add(clean_ticker)
-                us_direct += 1
-        else:
-            # Foreign ticker - check if it trades on US exchange under same symbol
-            # Extract base ticker (e.g., "HBM CN" -> "HBM", "TECK/B CN" -> "TECK.B")
-            base_ticker = str(ticker).split()[0]
-            base_ticker = base_ticker.replace('/', '.').replace('*', '')
-            
-            # First try to find OTC equivalent
-            us_ticker = _find_us_ticker(name, ticker, screener_df)
-            
-            if us_ticker:
-                # Found OTC mapping
-                us_tickers.add(us_ticker)
-                foreign_mapped += 1
-                logger.debug(f"Mapped {ticker} ({name}) -> {us_ticker} (OTC)")
-            elif base_ticker and len(base_ticker) > 1 and not base_ticker.isdigit():
-                # No OTC mapping, but assume base ticker trades on US exchange (NYSE/NASDAQ)
-                # This handles Canadian stocks like "HBM CN" -> "HBM" that are dual-listed
-                us_tickers.add(base_ticker)
-                foreign_mapped += 1
-                logger.debug(f"Mapped {ticker} ({name}) -> {base_ticker} (assumed US exchange)")
-            else:
-                discarded += 1
-                logger.debug(f"No US ticker found for {ticker} ({name})")
+            # Rate limiting for free tier (5 calls/minute)
+            if api_calls % 5 == 0:
+                logger.debug(f"Processed {api_calls} Polygon API calls, pausing...")
+                time.sleep(12)  # 12 seconds between batches of 5
+        
+        if us_ticker:
+            us_tickers.add(us_ticker)
+            polygon_mapped += 1
+            print(f"✓ [{processed}/{len(unique_holdings)}] {ticker} → {us_ticker} (Polygon)")
+            continue
+        
+        # Step 2: Look up in Stock_Screener.csv by company name
+        screener_ticker = _find_us_ticker(name, ticker, screener_df)
+        if screener_ticker:
+            us_tickers.add(screener_ticker)
+            screener_mapped += 1
+            print(f"✓ [{processed}/{len(unique_holdings)}] {ticker} → {screener_ticker} (Stock_Screener)")
+            logger.debug(f"Stock_Screener: {ticker} ({name}) -> {screener_ticker}")
+            continue
+        
+        # Step 3: Discard if not found
+        discarded += 1
+        print(f"✗ [{processed}/{len(unique_holdings)}] {ticker} ({name}) - No US ticker found")
+        logger.debug(f"No US ticker found for {ticker} ({name})")
     
     logger.info(f"Universe built: {len(us_tickers)} tickers")
-    logger.info(f"  - {us_direct} US/Canadian tickers added directly")
-    logger.info(f"  - {foreign_mapped} foreign tickers mapped to US equivalents")
+    logger.info(f"  - {polygon_mapped} tickers found via Polygon API")
+    logger.info(f"  - {screener_mapped} tickers found via Stock_Screener.csv")
     logger.info(f"  - {discarded} tickers discarded (no US equivalent)")
+    logger.info(f"  - {api_calls} Polygon API calls made")
     
     return sorted(us_tickers)
 
 def get_universe():
     """
     Returns the stock universe as a sorted list of tickers
+    Caches results to avoid rebuilding on every call
+    Delete results/universe_cache.txt to force rebuild
     """
-    return _parse_tickers()
+    # Check for cached universe
+    cache_file = Path(__file__).parent.parent.parent / 'results' / 'universe_cache.txt'
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Use cache if it exists
+    if cache_file.exists():
+        logger.info(f"Loading universe from cache")
+        with open(cache_file, 'r') as f:
+            tickers = [line.strip() for line in f if line.strip()]
+        logger.info(f"Loaded {len(tickers)} tickers from cache")
+        return tickers
+    
+    # Build universe from scratch
+    logger.info("No cache found, building universe from ETF holdings...")
+    tickers = _parse_tickers()
+    
+    # Save to cache
+    with open(cache_file, 'w') as f:
+        f.write('\n'.join(tickers))
+    logger.info(f"Universe cached to {cache_file}")
+    
+    return tickers
 
 # Benchmark ETFs
 BENCHMARK_ETFS = ['XLB', 'GDX', 'COPX', 'SLV', 'PICK', 'XME', 'SLX', 'GDXJ', 'SILJ', 'REMX']
